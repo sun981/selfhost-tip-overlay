@@ -27,11 +27,11 @@
 
         <form id="tip-form" novalidate>
           <div class="field">
-            <label for="donor_name">ชื่อ (ไม่บังคับ)</label>
+            <label for="supporter_name">ชื่อ (ไม่บังคับ)</label>
             <input
               type="text"
-              id="donor_name"
-              name="donor_name"
+              id="supporter_name"
+              name="supporter_name"
               maxlength="50"
               placeholder="ชื่อที่จะแสดงบนจอ"
               autocomplete="off"
@@ -157,7 +157,7 @@
 
       const amountBaht = parseInt(document.getElementById('amount').value, 10);
       const amountSatang = amountBaht * 100;
-      const donorName = document.getElementById('donor_name').value.trim().slice(0, 50);
+      const supporterName = document.getElementById('supporter_name').value.trim().slice(0, 50);
       const message = document.getElementById('message').value.trim().slice(0, 200);
 
       // Client-side validation (server also validates)
@@ -180,7 +180,7 @@
           body: JSON.stringify({
             amount: amountSatang,
             currency: 'thb',
-            donor_name: donorName,
+            supporter_name: supporterName,
             message: message,
           }),
         });

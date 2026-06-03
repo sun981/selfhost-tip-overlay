@@ -1,6 +1,6 @@
 // Tip Overlay — SSE subscriber + safe renderer
 // CSP enforced by nginx: script-src 'self', no inline, no eval
-// All donor content rendered via textContent (NEVER innerHTML) — SPEC §4.5
+// All supporter content rendered via textContent (NEVER innerHTML) — SPEC §4.5
 
 (function () {
   'use strict';
@@ -53,7 +53,7 @@
 
     const nameEl = document.createElement('span');
     nameEl.className = 'tip-name';
-    nameEl.textContent = data.donor_name || 'ไม่ระบุชื่อ'; // textContent — SPEC §4.5
+    nameEl.textContent = data.supporter_name || 'ไม่ระบุชื่อ'; // textContent — SPEC §4.5
 
     const amountEl = document.createElement('span');
     amountEl.className = 'tip-amount';

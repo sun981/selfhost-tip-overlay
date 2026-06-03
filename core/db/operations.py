@@ -234,7 +234,7 @@ class DBOps:
             return result.scalar() or 1
 
     def purge_old(self, before: datetime) -> int:
-        """Delete donor name/message from records older than `before`. Returns count."""
+        """Delete supporter name/message from records older than `before`. Returns count."""
         with self._engine.begin() as conn:
             result = conn.execute(
                 text(

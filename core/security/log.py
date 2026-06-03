@@ -20,7 +20,7 @@ _SECRET_KEYS = {
 def safe_event(event_type: str, charge_id: str, **kwargs) -> dict:
     """
     Build a structured log record safe to emit to stdout.
-    Excludes donor name/message at info level per ARCHITECTURE §9.4.
+    Excludes supporter name/message at info level per ARCHITECTURE §9.4.
     """
     record = {"event": event_type, "charge_id": charge_id}
     # Only include amount and status — never name/message/secret
