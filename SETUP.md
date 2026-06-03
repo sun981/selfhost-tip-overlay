@@ -55,7 +55,7 @@ Cloudflare Tunnel ทำให้ Omise ส่ง webhook มาถึงเค�
 
 1. ไปที่ [one.dash.cloudflare.com](https://one.dash.cloudflare.com) → **Networks** → **Tunnels**
    (ถ้าหน้าแรกถามว่าเลือก plan → เลือก **Free**)
-2. **Create a tunnel** → ตั้งชื่อ เช่น `tip-overlay` → **Save tunnel**
+2. **Create a tunnel** → ตั้งชื่อ เช่น `tip-web` (tunnel นี้รับ traffic จาก internet ไม่เกี่ยวกับ OBS) → **Save tunnel**
 3. หน้าถัดไป เลือก tab **Docker** → คัดลอก command ที่มี token ยาวๆ
 
    ตัวอย่าง:

@@ -1,4 +1,4 @@
-FROM python:3.12.3-slim@sha256:541fe9b5b40c99f25ca9bdbb90c17b29e0d36268491e8247a20e0ef060ce1c36
+FROM python:3.12.3-slim@sha256:afc139a0a640942491ec481ad8dda10f2c5b753f5c969393b12480155fe15a63
 
 WORKDIR /app
 
@@ -9,14 +9,20 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source (no secrets — they come in via env_file at runtime)
 COPY core/ ./core/
 COPY contracts/ ./contracts/
-COPY app/stages/ ./app/stages/
+COPY app/__init__.py ./app/
+COPY app/sse_broadcaster.py ./app/
+COPY app/obs_client.py ./app/
+COPY app/reconciliation.py ./app/
 COPY app/process_tip.py ./app/
+COPY app/stages/ ./app/stages/
 COPY app/settings.json ./app/
 COPY main.py .
+COPY routes/ ./routes/
 
-# Create non-root user
+# Create non-root user and data directory with correct ownership
 RUN useradd -r -u 1000 -g 0 appuser && \
-    chown -R appuser:0 /app
+    chown -R appuser:0 /app && \
+    mkdir -p /data && chown appuser:0 /data && chmod 775 /data
 
 USER 1000
 

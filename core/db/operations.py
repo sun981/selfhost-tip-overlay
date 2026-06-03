@@ -201,7 +201,14 @@ class DBOps:
                 text("SELECT last_scan_at FROM recon_state WHERE id=1")
             )
             row = result.fetchone()
-            return row[0] if row else None
+            if not row or row[0] is None:
+                return None
+            val = row[0]
+            if isinstance(val, str):
+                val = datetime.fromisoformat(val.replace("Z", "+00:00"))
+            if val.tzinfo is None:
+                val = val.replace(tzinfo=timezone.utc)
+            return val
 
     def set_last_scan_at(self, ts: datetime) -> None:
         with self._engine.begin() as conn:

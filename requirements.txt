@@ -5,7 +5,7 @@ uvicorn[standard]==0.32.1
 httpx==0.28.0
 sqlalchemy==2.0.36
 python-multipart==0.0.19
-simpleobsws==1.4.0
+websockets==13.1
 slowapi==0.1.9
 structlog==24.4.0
 pydantic==2.10.3
