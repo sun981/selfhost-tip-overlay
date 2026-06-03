@@ -1,0 +1,34 @@
+# Secrets (SPEC §4.6 — block from the very first commit)
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.credentials
+*.cert
+# cloudflared tunnel creds
+cert.pem
+*.tunnel.json
+.cloudflared/
+
+# Obsidian session/UI state (keep shared vault config, drop per-session state)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+
+# Python (for when code lands)
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Local data / DB (for when code lands)
+data/
+*.sqlite
+*.sqlite3
+*.db
