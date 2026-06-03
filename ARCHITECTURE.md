@@ -14,7 +14,7 @@
 > - เพิ่มเติม (recall ไม่ใช่ fetched-source — verify กับทนายเอง): ไทยมี **พ.ร.บ.ควบคุมการเรี่ยไร พ.ศ.2487** — solicit donation สาธารณะอาจต้องขออนุญาต; framing "Tip = ค่าตอบแทนบริการ" เลี่ยงประเด็นเรี่ยไรด้วย
 
 > [!success] LOCKED — review round 2 (2026-06-03) — ข้อสรุปสุดท้าย ใช้สร้าง PoC (supersede §14 + note กระจัดกระจาย)
-> **Naming:** product = **"Tip Overlay System"**. user-facing ทุกจุด (หน้า/ปุ่ม/README/ข้อความถึงผู้ให้/donor) = **"Tip"** — ห้าม "Donate/Donation". **internal identifier เก็บเดิม** (`donations` table, `donor_name`, `charge`, `process_donation`) — ไม่ใช่ user-facing, ไม่โดน Omise/กฎหมาย, ตรง Omise API vocab → ไม่ churn
+> **Naming:** product = **"Tip Overlay System"**. user-facing ทุกจุด (หน้า/ปุ่ม/README/ข้อความถึงผู้ให้/supporter) = **"Tip"** — ห้าม "Donate/Donation". **code identifier ทั้งหมดเปลี่ยนแล้ว** (`tips` table, `supporter_name`, `TipEvent`, `process_tip`) — โปรเจกต์เป็น open source ดังนั้น identifier ต้องสะอาดด้วย
 > **PoC scope (ทำรอบนี้):** PromptPay server-side ไม่ใช้ Omise.js (D2) · SQLite (D5) · **min ฿20** (Omise hard limit, §14 Q2) · overlay **local** (localhost, OBS เครื่องเดียวกับ backend, ไม่ผ่าน tunnel — §14 Q3) · ingress **path-based** (`/`=tip page, `/webhooks/omise` — §14 Q5) · **word-filter** + **amount-tiers** (ปรับจาก `settings.json`) + **alert sound** (static) · feedback หลังจ่าย = มี · config = **`settings.json` + CSS theme เท่านั้น ไม่มี config UI** (user custom เองผ่านไฟล์ — §14 Q8)
 > **Roadmap (ยังไม่ทำ):** card (+Omise.js+SRI) · TTS (provider=Google ตอน build) · **donor-pays-fee toggle** (§14 Q10) · goal bar / top-donor · config UI · moderation hold queue · remote OBS (seam พร้อมแล้ว §8.5)
 > **Defaults (ไม่ค้าน = ใช้เลย):** message cap 200 ตัว · privacy purge 90 วัน · recon ไม่ push ขึ้นจอถ้า `paid_at` เก่ากว่า ~10 นาทีก่อน startup (ยัง record เข้า DB)
@@ -24,7 +24,7 @@
 
 ## 1. Purpose & scope
 
-ระบบรับ **tip** สำหรับ streamer แบบ self-host มาแทน TipMe (ปิดตัว) จุดขายเทียบ TipMe: (user-facing = "Tip"; internal identifier เช่น `donations`/`donor` เก็บเดิม ดู LOCKED block บนสุด)
+ระบบรับ **tip** สำหรับ streamer แบบ self-host มาแทน TipMe (ปิดตัว) จุดขายเทียบ TipMe: (user-facing = "Tip"; internal identifier เช่น `tips`/`supporter` เก็บเดิม ดู LOCKED block บนสุด)
 
 | | TipMe | ระบบนี้ |
 |---|---|---|
@@ -45,15 +45,15 @@
 - **อย่าเคลมว่า maintained** — เคลมแค่ "reference implementation, คุณเป็นเจ้าของความปลอดภัยของ fork คุณเอง"
 
 ### 1.2 Template ambition — รับยุค personal-tools (วาง ไม่ build framework)
-- มองยาว: หลังยุค AI คนจะ vibecode personal tool กันมากขึ้น → ของที่มีค่าจริงระยะยาวอาจเป็น **skeleton ของ "self-host tool ที่ vibecode ได้ + ปลอดภัย"** (core/edge split, hook, AGENTS.md, config-over-code, make verify) ไม่ใช่ตัว logic donation
-- **donation = ตัวพิสูจน์ pattern** — สร้าง instance จริง 1 ตัวให้ดีก่อน, pattern จะโผล่เป็น template ที่ documented. **extract เป็น skeleton ทีหลัง** เมื่อพิสูจน์แล้ว — **ห้าม build generic framework ตอนนี้** (Karpathy / SPEC "ห้าม over-engineer")
+- มองยาว: หลังยุค AI คนจะ vibecode personal tool กันมากขึ้น → ของที่มีค่าจริงระยะยาวอาจเป็น **skeleton ของ "self-host tool ที่ vibecode ได้ + ปลอดภัย"** (core/edge split, hook, AGENTS.md, config-over-code, make verify) ไม่ใช่ตัว logic tip
+- **tip = ตัวพิสูจน์ pattern** — สร้าง instance จริง 1 ตัวให้ดีก่อน, pattern จะโผล่เป็น template ที่ documented. **extract เป็น skeleton ทีหลัง** เมื่อพิสูจน์แล้ว — **ห้าม build generic framework ตอนนี้** (Karpathy / SPEC "ห้าม over-engineer")
 
 ---
 
 ## 2. Design principles
 
 1. **ระบบไม่ถือเงิน (never-custody)** — donor → Omise → บัญชี streamer โดยตรง นี่คือ trust claim หลักที่ตรวจสอบได้ของ OSS
-2. **Single-tenant blast radius** — skey อยู่บนเครื่อง streamer คนเดียว ถ้าถูก compromise กระทบเฉพาะบัญชี Omise ของ streamer คนนั้น ไม่ลามคนอื่น (ข้อได้เปรียบด้านความปลอดภัยเหนือ SaaS รวมศูนย์). 🔧[rev 2026-06-03 — ซื่อสัตย์ P1#6] skey เป็น **live key ที่ refund ได้ + อ่าน transaction ทั้งบัญชี** → RCE = กระทบ**ทั้งบัญชี Omise** ของ streamer ไม่ใช่แค่ donation แอปนี้ (mitigate ด้วย container hardening §10.1). **assumption: บัญชี Omise นั้นใช้กับ tip อย่างเดียว — อย่าเอาบัญชีที่ทำธุรกิจอื่นมาปน**
+2. **Single-tenant blast radius** — skey อยู่บนเครื่อง streamer คนเดียว ถ้าถูก compromise กระทบเฉพาะบัญชี Omise ของ streamer คนนั้น ไม่ลามคนอื่น (ข้อได้เปรียบด้านความปลอดภัยเหนือ SaaS รวมศูนย์). 🔧[rev 2026-06-03 — ซื่อสัตย์ P1#6] skey เป็น **live key ที่ refund ได้ + อ่าน transaction ทั้งบัญชี** → RCE = กระทบ**ทั้งบัญชี Omise** ของ streamer ไม่ใช่แค่ tip แอปนี้ (mitigate ด้วย container hardening §10.1). **assumption: บัญชี Omise นั้นใช้กับ tip อย่างเดียว — อย่าเอาบัญชีที่ทำธุรกิจอื่นมาปน**
 3. **Idempotency = ตัวการันตีความถูกต้อง** ไม่ใช่ cursor — ประมวลผล charge เดิมซ้ำได้ปลอดภัยเสมอ
 4. **ห้าม over-engineer** — สร้าง PromptPay แบบ concrete ทำ card เป็น extension point อย่า abstract ล่วงหน้า
 5. **Secure by default** — ขาด secret = refuse start, CORS explicit, ทุก output escape
@@ -66,7 +66,7 @@
 | #   | ประเด็น               | ตัดสินใจ                                                                                | เหตุผล                                                                                   |
 | --- | --------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
 | D1  | สร้าง charge          | **`POST /charge` ฝั่ง server (skey)**                                                   | pkey สร้าง charge ไม่ได้ สร้างได้แค่ source/token — server เท่านั้นที่ charge ได้        |
-| D2  | **PromptPay flow** ⚠️ | **สร้าง source + charge ฝั่ง server ทั้งหมด → donate page ไม่โหลด Omise.js เลย**        | ดู §3.1 — กระทบ frontend + ทำให้ §4.7.4 (SRI) ไม่ applicable กับ PoC                     |
+| D2  | **PromptPay flow** ⚠️ | **สร้าง source + charge ฝั่ง server ทั้งหมด → tip page ไม่โหลด Omise.js เลย**        | ดู §3.1 — กระทบ frontend + ทำให้ §4.7.4 (SRI) ไม่ applicable กับ PoC                     |
 | D3  | donor name/message    | round-trip ผ่าน `charge.metadata`                                                       | ตรงตาม SPEC §4.4 + reconciliation ดึงกลับได้                                             |
 | D4  | push                  | **SSE** (ไม่ใช่ WebSocket)                                                              | one-way server→overlay, auto-reconnect, plain HTTP, ผ่าน tunnel ง่าย                     |
 | D5  | DB                    | **SQLite** (schema portable ไป Postgres)                                                | self-host ชิ้นส่วนน้อยสุด, SPEC §8 อนุญาต                                                |
@@ -86,7 +86,7 @@
 PromptPay **ไม่มีข้อมูลบัตร** (ไม่มี PAN) → ไม่มีประเด็น PCI → Omise รองรับการสร้าง source + charge ในคำขอเดียวฝั่ง server ด้วย skey ([Omise PromptPay docs](https://docs.omise.co/promptpay))
 
 ผลที่ตามมา:
-- donate page **ไม่โหลด JS ของบุคคลที่สาม** → audit ง่ายขึ้น, attack surface เล็กลง
+- tip page **ไม่โหลด JS ของบุคคลที่สาม** → audit ง่ายขึ้น, attack surface เล็กลง
 - **SPEC §4 / §7.4 "Omise.js pinned + SRI" → ไม่ applicable กับ PoC นี้** (เพราะไม่มี Omise.js) — นี่ไม่ใช่การข้าม non-negotiable แต่เป็นการ "ไม่มีของที่ต้อง pin" ข้อบังคับนี้ **กลับมา when card support lands** (card บังคับ tokenize ฝั่ง client ด้วย Omise.js เพราะ PAN ห้ามแตะ server ของเรา)
 - **QR มาจากไหน?** QR เกิดตอน backend สร้าง charge ฝั่ง server — Omise คืน `charge.source.scannable_code.image.download_uri` (PNG โฮสต์ที่ Omise) ไม่เกี่ยวกับ Omise.js (Omise.js มีไว้ tokenize บัตรเท่านั้น) → ตัด Omise.js ไม่กระทบ QR
 - QR ถึง donor 2 ทาง: (a) `<img src=download_uri>` ตรงจาก Omise (CSP img-src ต้อง allow Omise host) หรือ **(b) backend proxy รูปมา serve เอง → CSP `img-src 'self'`** (D10, แนะนำ)
@@ -96,7 +96,7 @@ PromptPay **ไม่มีข้อมูลบัตร** (ไม่มี PAN
 ### 3.2 ⚠️ D7 ขยายความ — live gate วางตรงไหน
 
 - **`POST /charge`**: เช็ค live ก่อน ถ้าไม่ live → ปฏิเสธ (บังคับ UX gate ฝั่ง server กัน client หลบ JS)
-- **`POST /webhooks/omise`**: **ห้ามผูกกับ live status เด็ดขาด** — เงินจ่ายไปแล้ว, PromptPay จ่ายแบบ async (donor อาจจ่ายช้าหลัง stream จบ) ถ้าปฏิเสธเพราะไม่ live = donation หาย **webhook ต้องบันทึกเสมอ ไม่ว่าจะ live หรือไม่**
+- **`POST /webhooks/omise`**: **ห้ามผูกกับ live status เด็ดขาด** — เงินจ่ายไปแล้ว, PromptPay จ่ายแบบ async (donor อาจจ่ายช้าหลัง stream จบ) ถ้าปฏิเสธเพราะไม่ live = tip หาย **webhook ต้องบันทึกเสมอ ไม่ว่าจะ live หรือไม่**
 
 ---
 
@@ -130,7 +130,7 @@ PromptPay **ไม่มีข้อมูลบัตร** (ไม่มี PAN
                                       │ ingress rules (hostname/path → service)
         ┌──────────────────┬─────────┴──────────┬──────────────────┐
         ▼                  ▼                     ▼                  ▼
-  donate page         overlay page          /api/* , /webhooks/*   (live-status = /api/live-status)
+  tip page         overlay page          /api/* , /webhooks/*   (live-status = /api/live-status)
   (nginx static)      (nginx static)         backend (FastAPI)
         │                  ▲                     │   │
         │ fetch /api/*     │ SSE /api/events     │   │
@@ -141,7 +141,7 @@ PromptPay **ไม่มีข้อมูลบัตร** (ไม่มี PAN
                           ┌───────────┴───────────┐
                           ▼                       ▼
                     SQLite (volume)        OBS WebSocket
-                    donations,             host.docker.internal:4455
+                    tips, host.docker.internal:4455
                     recon_state            (host-only, ห้าม expose)
                                                  │
                                           Omise API (httpx, outbound)
@@ -153,7 +153,7 @@ PromptPay **ไม่มีข้อมูลบัตร** (ไม่มี PAN
 | service | หน้าที่ | network exposure |
 |---|---|---|
 | `backend` | API, webhook verify, charge create, reconciliation, SSE, OBS client, ถือ skey/webhook secret | ผ่าน tunnel เฉพาะ path `/api/*` + `/webhooks/*` |
-| `frontend` | donate page (static, nginx) | public ผ่าน tunnel |
+| `frontend` | tip page (static, nginx) | public ผ่าน tunnel |
 | `overlay` | overlay page (static, nginx, CSP เข้ม) | 🔧[rev 2026-06-03] **local เท่านั้น** (OBS browser source เครื่องเดียวกับ backend → localhost, **ไม่ผ่าน tunnel**). token ยังมี (default-deny). remote OBS = เปิด tunnel+token เอง(config, สาย tech §8.5) |
 | `db` | SQLite ผ่าน volume (PoC) — service จริงจะมีเมื่อย้าย Postgres | internal เท่านั้น |
 | `cloudflared` | tunnel | outbound only |
@@ -164,15 +164,15 @@ PromptPay **ไม่มีข้อมูลบัตร** (ไม่มี PAN
 
 - **Public ผ่าน tunnel** (path-based, 🔧[rev]): tip page (`/`), `GET /api/live-status`, `POST /api/charge`, `GET /api/charge/{id}/status`, `POST /webhooks/omise`
 - **Local/host-only เท่านั้น** (🔧[rev] overlay ย้ายมาที่นี่): **overlay page + `GET /api/events/overlay`** (OBS ต่อ localhost ไม่ผ่าน tunnel), OBS WebSocket 4455, DB, skey, webhook secret
-- `/api/live-status` คืนแค่ `{live: bool}` — เปิด public ได้เพราะ donate page (รันใน browser) ต้องเรียก
+- `/api/live-status` คืนแค่ `{live: bool}` — เปิด public ได้เพราะ tip page (รันใน browser) ต้องเรียก
 
 ---
 
 ## 6. Data model
 
 ```sql
--- donation 1 แถวต่อ 1 charge — charge_id เป็น idempotency key
-CREATE TABLE donations (
+-- tip 1 แถวต่อ 1 charge — charge_id เป็น idempotency key
+CREATE TABLE tips (
     charge_id     TEXT PRIMARY KEY,           -- Omise charge id (chrg_...) — unique กัน replay/ส่งซ้ำ
     status        TEXT NOT NULL,              -- pending | successful | failed | expired
     amount        INTEGER NOT NULL,           -- satang (1 THB = 100) เก็บตามที่ Omise ส่ง
@@ -185,7 +185,7 @@ CREATE TABLE donations (
     pushed_at     TIMESTAMP,                   -- ตอน push ขึ้น overlay สำเร็จ (กัน push ซ้ำ)
     event_seq     INTEGER                      -- 🔧[rev 2026-06-03] monotonic seq เซ็ตตอน push → SSE `id:` สำหรับ Last-Event-ID replay (P0#2, §8.5)
 );
-CREATE INDEX IF NOT EXISTS idx_event_seq ON donations(event_seq);  -- 🔧[rev] overlay reconnect replay (P0#2)
+CREATE INDEX IF NOT EXISTS idx_event_seq ON tips(event_seq);  -- 🔧[rev] overlay reconnect replay (P0#2)
 
 -- bound ว่า reconciliation ย้อนหลังแค่ไหน (ไม่ใช่ correctness — idempotency เป็นตัวการันตี)
 CREATE TABLE recon_state (
@@ -212,10 +212,10 @@ CREATE TABLE recon_state (
 | GET | `/api/live-status` | `{live: bool}` จาก OBS | public |
 | POST | `/api/charge` | สร้าง source+charge (skey), เขียน metadata, คืน QR | public + **live gate** + validation |
 | GET | `/api/charge/{id}/status` | อ่าน status จาก **DB local** (ไม่ยิง Omise ทุก poll) — 🔧[rev] คืนแค่ `{status}` (+amount) **ไม่คืน name/message** กันใครรู้ charge_id อ่านข้อความ donor (P1#5) + rate-limit poll | public (รู้ id เท่านั้น) |
-| GET | `/api/events/overlay?token=` | SSE stream donation ที่ verified แล้ว — 🔧[rev] emit `id: {event_seq}`; on reconnect อ่าน `Last-Event-ID` → replay เฉพาะ seq ใหม่กว่า (LIMIT N), fresh source (ไม่มี header) = start live ไม่ replay (P0#2) | **token** |
-| GET | `/api/donations/recent?after={seq}` | 🔧[rev] backfill gap แบบ manual (overlay/bot ดึงย้อนหลัง), token-gated, return เฉพาะ field overlay ใช้ (P0#2) | **token** |
+| GET | `/api/events/overlay?token=` | SSE stream tip ที่ verified แล้ว — 🔧[rev] emit `id: {event_seq}`; on reconnect อ่าน `Last-Event-ID` → replay เฉพาะ seq ใหม่กว่า (LIMIT N), fresh source (ไม่มี header) = start live ไม่ replay (P0#2) | **token** |
+| GET | `/api/tips/recent?after={seq}` | 🔧[rev] backfill gap แบบ manual (overlay/bot ดึงย้อนหลัง), token-gated, return เฉพาะ field overlay ใช้ (P0#2) | **token** |
 | POST | `/webhooks/omise` | verify sig → record → push | signature เท่านั้น (ไม่พึ่ง CORS) |
-| GET | `/` (donate), `/overlay` | static pages | overlay ต้องมี token |
+| GET | `/` (tip), `/overlay` | static pages | overlay ต้องมี token |
 
 **Validation ที่ `POST /charge`** (ก่อนสร้าง charge / เขียน metadata):
 - `amount`: integer, อยู่ในช่วง min–max (เช่น 2000–10000000 satang = ฿20–฿100,000), `currency` บังคับ `thb`
@@ -229,7 +229,7 @@ CREATE TABLE recon_state (
 
 ### 8.1 Live status
 ```
-donate page (onload) ─GET /api/live-status─▶ backend ─obs-ws GetStreamStatus─▶ OBS
+tip page (onload) ─GET /api/live-status─▶ backend ─obs-ws GetStreamStatus─▶ OBS
                                               outputActive ──────────────────────┘
    live=false → แสดง "ยังไม่ได้ไลฟ์" ไม่ render form
    live=true  → render form (amount/name/message)
@@ -238,13 +238,13 @@ backend cache ผล OBS สั้นๆ (เช่น 2–3s) กันยิ�
 
 ### 8.2 Charge creation (PromptPay) — ⚠️ ลำดับสำคัญ
 ```
-1. donor กรอก amount + name + message บน donate page
-2. donate page ─POST /api/charge {amount,name,message}─▶ backend
+1. donor กรอก amount + name + message บน tip page
+2. tip page ─POST /api/charge {amount,name,message}─▶ backend
 3. backend: เช็ค live (ไม่ live→403) + validate amount/name/message
 4. backend ─create source(promptpay)+charge(skey), metadata={name,message}─▶ Omise API
-5. backend INSERT donations(charge_id, status='pending', amount, name, message, ...)
+5. backend INSERT tips(charge_id, status='pending', amount, name, message, ...)
 6. backend คืน {charge_id, qr_download_uri, status:'pending'}
-7. donate page แสดง QR + เริ่ม poll GET /api/charge/{id}/status ทุก ~2-3s
+7. tip page แสดง QR + เริ่ม poll GET /api/charge/{id}/status ทุก ~2-3s
 ```
 > **name/message ต้องเก็บ "ก่อน" สร้าง charge** เพราะมันถูกเขียนเป็น `charge.metadata` ตอนสร้าง — นี่คือสิ่งที่ทำให้ metadata round-trip (D3) ทำงานได้
 
@@ -262,9 +262,9 @@ Omise ─POST /webhooks/omise (raw body + Omise-Signature + Omise-Signature-Time
   h. ถ้า charge.status == 'successful':
         [record] UPDATE SET status='successful', paid_at=... WHERE charge_id=? AND status!='successful'  ← commit เงินก่อน เสมอ
         [push]   ถ้า pushed_at IS NULL:
-                    try: ev = process_donation(event) [seam §12, มี timeout]
+                    try: ev = process_tip(event) [seam §12, มี timeout]
                          ถ้าไม่ถูก DROP/HOLD → push SSE(ev) → set pushed_at
-                    except/timeout: push **base donation** = amount+name แต่ 🔧[rev] **ตัด message เป็นว่าง/"[ซ่อน]"** (ไม่ push raw — กัน word-filter crash แล้วคำหยาบหลุด P0#3) → set pushed_at  ← edge พังไม่ทำให้ donation หาย/ไม่หลุดคำ
+                    except/timeout: push **base tip** = amount+name แต่ 🔧[rev] **ตัด message เป็นว่าง/"[ซ่อน]"** (ไม่ push raw — กัน word-filter crash แล้วคำหยาบหลุด P0#3) → set pushed_at  ← edge พังไม่ทำให้ tip หาย/ไม่หลุดคำ
      ถ้า failed/expired → update status, ไม่ push
   i. ตอบ 200 (แม้เป็น duplicate ที่ verify ผ่าน) กัน Omise retry; 401 เฉพาะ sig ผิด
 ```
@@ -282,7 +282,7 @@ on backend start:
   4. set recon_state.last_scan_at = now
 ```
 > cursor แค่ **bound ว่าย้อนหลังแค่ไหน** ไม่ใช่กลไกความถูกต้อง — idempotency คือกลไกความถูกต้อง ดังนั้นไม่ต้องแม่นระดับ paid-time (list API order by created ก็พอ)
-> เหตุผล: Omise ไม่การันตี retry webhook → fallback นี้กัน donation หายตอนเครื่องดับ
+> เหตุผล: Omise ไม่การันตี retry webhook → fallback นี้กัน tip หายตอนเครื่องดับ
 
 ### 8.5 Overlay render (SPEC §4.5)
 ```
@@ -348,7 +348,7 @@ PaymentGateway:
   verify_webhook(raw_body, headers) -> VerifiedCharge | reject   ← security-critical, ต่างเจ้า
   list_recent(since) -> [...]                                     ← reconciliation
 ```
-- format เฉพาะเจ้าอยู่**ข้างใน adapter**, system ที่เหลือพูด `DonationEvent` ปกติ
+- format เฉพาะเจ้าอยู่**ข้างใน adapter**, system ที่เหลือพูด `TipEvent` ปกติ
 - ⚠️ **adapter = Secure Core (hook-protected) ไม่ใช่ Safe Edge** — เพราะ `verify_webhook` เป็นด่านหลัก → **เพิ่ม gateway = reviewed contribution ไม่ใช่ vibecode/config toggle**
 - **startup self-test (§13.2) ยิง bad-signature vector ของทุก adapter ที่เปิด** — กัน adapter ใหม่ verify หละหลวม
 - **PoC**: Omise เป็น concrete impl หลัง interface บางๆ — **ไม่สร้าง adapter ที่ 2** (seam ไม่ใช่ framework). adapter อยู่ `core/payment/` (§13.6)
@@ -406,7 +406,7 @@ PaymentGateway:
 | signature ผิด / ปลอม webhook | 401 ปฏิเสธ |
 | charge `failed`/`expired` | update status, ไม่ push, ไม่แสดง |
 | overlay disconnect (backend ยัง up) | พลาด live event → reconnect แล้วดึง recent unacked (known gap PoC) |
-| OBS ปิด / ws ต่อไม่ได้ | `/live-status` คืน live=false (fail-closed) → donate form ไม่ขึ้น |
+| OBS ปิด / ws ต่อไม่ได้ | `/live-status` คืน live=false (fail-closed) → tip form ไม่ขึ้น |
 | ข้อความ donor มี `<script>` | textContent + CSP → แสดงเป็น text ไม่รัน |
 | start โดยไม่มี secret | refuse start + บอกว่าขาดอะไร |
 
@@ -438,19 +438,19 @@ PaymentGateway:
 ### 12.1 หลักการ: payment gate = ฐานกัน hater
 ต่างจาก chat ฟรี — ส่งข้อความได้ **ต้องจ่ายเงินจริง** → economics กลับด้าน: hater เสียเงินทุกครั้งที่ป่วน นี่คือ**ชั้นฐาน** ชั้นอื่น build บนนี้
 
-### 12.2 The seam — `process_donation()` จุดเดียว (D11)
+### 12.2 The seam — `process_tip()` จุดเดียว (D11)
 ระหว่าง "verified successful" (§8.3.h) กับ "push" มี hook เดียว:
 ```
 verified charge
-  → DonationEvent   (contract เสถียร: {charge_id, amount, name, message, paid_at, source_type})
-  → process_donation(event) -> ProcessedEvent | DROP | HOLD
+  → TipEvent   (contract เสถียร: {charge_id, amount, name, message, paid_at, source_type})
+  → process_tip(event) -> ProcessedEvent | DROP | HOLD
   → OverlayEvent    (สิ่งที่ overlay/TTS บริโภค: {name, message, amount, tts_audio_url?, flagged?})
   → push SSE
 ```
-- **PoC**: 🔧[rev 2026-06-03] `process_donation` = **1 stage จริง = word-filter** (ไม่ใช่ passthrough อีกต่อไป — §14#6 ดันเข้า PoC). cap/charset ยังทำที่ §7. **ยังไม่ build stage *framework*** (list/registry) — มี stage เดียว hardcode ก่อน. stage พัง → fallback ตัด message (§8.3.h) P0#3
+- **PoC**: 🔧[rev 2026-06-03] `process_tip` = **1 stage จริง = word-filter** (ไม่ใช่ passthrough อีกต่อไป — §14#6 ดันเข้า PoC). cap/charset ยังทำที่ §7. **ยังไม่ build stage *framework*** (list/registry) — มี stage เดียว hardcode ก่อน. stage พัง → fallback ตัด message (§8.3.h) P0#3
 - **ทีหลัง**: เปลี่ยนเป็น list ของ stage เรียงกัน แต่ละ stage `(event) -> event | DROP | HOLD` เพิ่มได้โดยไม่แตะ webhook/overlay
-- กุญแจ: **contract ของ DonationEvent + OverlayEvent ต้องเสถียร** — เผื่อ field `tts_audio_url`, `flagged` ไว้ตั้งแต่แรกแม้ยังไม่ใช้ → เพิ่มฟีเจอร์แล้ว overlay ไม่ break
-- ⚠️ **runtime safety (ไม่ใช่แค่ import direction)**: core เรียก stage *หลัง* commit เงิน (§8.3.h) + ห่อ try/except + timeout → **stage พัง = push base donation, เงินไม่หาย, ไม่ block**
+- กุญแจ: **contract ของ TipEvent + OverlayEvent ต้องเสถียร** — เผื่อ field `tts_audio_url`, `flagged` ไว้ตั้งแต่แรกแม้ยังไม่ใช้ → เพิ่มฟีเจอร์แล้ว overlay ไม่ break
+- ⚠️ **runtime safety (ไม่ใช่แค่ import direction)**: core เรียก stage *หลัง* commit เงิน (§8.3.h) + ห่อ try/except + timeout → **stage พัง = push base tip, เงินไม่หาย, ไม่ block**
 - ⚠️ **งานที่เรียก external (TTS) ห้ามอยู่บน sync push path** — push base ก่อน แล้ว enrich async (external API ใน commit path = ทั้งช่องโหว่ reliability + safety)
 - **import**: core เรียก stage ผ่าน `contracts/` (dependency inversion) — edge register stage เข้า contract, **core ไม่ import edge ตรงๆ** (กราฟ import สะอาด แต่จำไว้: ตัวการันตีจริงคือ runtime isolation ข้างบน ไม่ใช่ทิศ import)
 
@@ -486,9 +486,9 @@ flow: process stage → provider → backend cache audio → serve self-hosted
 
 ### 12.6 API-first → รองรับ future feature + bot (static ไม่จำกัดการโต)
 - frontend/overlay เป็น **static + ผู้บริโภค API** — feature ใหม่ (top-donor, แสดงสิทธิ/สถานะ) = endpoint ใหม่ + หน้า/widget ใหม่ ไม่ rewrite. หนักขึ้นค่อยเติม build step ทีหลัง (migrate)
-- **bot integration seam**: contract ที่เสถียร 2 ตัวคือจุดต่อ bot — **SSE event stream** (bot subscribe donation realtime) + **read API** (`GET /api/donations` recent/top) → bot/ระบบอื่นดึงไปทำต่อได้
+- **bot integration seam**: contract ที่เสถียร 2 ตัวคือจุดต่อ bot — **SSE event stream** (bot subscribe tip realtime) + **read API** (`GET /api/tips` recent/top) → bot/ระบบอื่นดึงไปทำต่อได้
 - bot read API ใช้ **token แยก** (อ่านอย่างเดียว) ไม่ใช่ skey — PoC ยังไม่ build, แต่ออกแบบ event contract (§12.2) ให้ bot ใช้ได้ตั้งแต่ตอนนี้
-- top-donor/history **ต้อง persist donation** → โยง privacy §9.3 (เก็บ alias/message + retention)
+- top-donor/history **ต้อง persist tip** → โยง privacy §9.3 (เก็บ alias/message + retention)
 
 ---
 
@@ -501,7 +501,7 @@ user เป็น streamer ไม่ใช่ coder → จะใช้ AI แ�
 ### 13.1 แบ่ง 2 โซน (D12)
 | **Secure Core** (ห้าม vibecode) | **Safe Edge** (vibecode สบาย) |
 |---|---|
-| signature verify, secret load, charge create (skey), idempotency, replay window, CORS, startup self-test | overlay look/animation, donate page style, `process_donation` stages, config values |
+| signature verify, secret load, charge create (skey), idempotency, replay window, CORS, startup self-test | overlay look/animation, tip page style, `process_tip` stages, config values |
 | = money + secret path | = presentation + ข้อมูลที่ verified แล้ว |
 
 **Guarantee**: ต่อให้ Safe Edge พังเละ → Secure Core invariant ยังแน่น (เงินปลอมไม่ได้, secret ไม่รั่ว, signature ข้ามไม่ได้)
@@ -519,7 +519,7 @@ user เป็น streamer ไม่ใช่ coder → จะใช้ AI แ�
 - **AI guidance files**: `AGENTS.md` / `CLAUDE.md` / `.cursorrules` ในrepo บอก AI: ไฟล์ไหน core ห้ามแตะ, แก้ได้ที่ไหน + **"แก้เสร็จรัน `make verify` ถ้าแดง = พัง security invariant ให้ revert"**
 - **bridge soft→loop**: ship เกณฑ์ SPEC §11 เป็น test suite รันได้ (`make verify` / `docker compose run tests`) → AGENTS.md ชี้ AI มารันอันนี้ → steering กลายเป็น loop ที่ AI เช็คเอง. test นี้ต้องมีอยู่แล้วเพื่อ §11 → cost เพิ่ม ≈ 0
 - 🔧[rev 2026-06-03 P1#4] **`make verify` += `pip-audit` + image scan (`trivy`)** → green = "logic ถูก **+ ไม่มี known CVE ใน pin วันนี้**" (verify เดิมเช็ค invariant ไม่เช็ค vuln — §1.1 freshness signal เลยจะมีฟันจริง). CVE ที่ยังไม่มี patch → `.audit-ignore` มี **reason + วันหมดอายุ** = decision ที่จงใจ ไม่ใช่ปิดตาเงียบ
-- ⚠️ ข้อจำกัด: พอ prompt ขัด ("donation ไม่ขึ้น แก้ที") AI อาจแตะ core อยู่ดี → นี่คือ steering ไม่ใช่ enforcement (ของจริงอยู่ §13.2)
+- ⚠️ ข้อจำกัด: พอ prompt ขัด ("tip ไม่ขึ้น แก้ที") AI อาจแตะ core อยู่ดี → นี่คือ steering ไม่ใช่ enforcement (ของจริงอยู่ §13.2)
 
 ### 13.4 จงใจไม่ทำ (over-engineer สำหรับ PoC)
 sandbox/container แต่ละ stage, per-stage capability system, เซ็น vibecode diff, RBAC — **ข้ามหมด**
@@ -539,11 +539,11 @@ core/         ← Secure Core (hook-protected, human-review-only)
   security/     secret load, startup self-test, log redaction
   db/           schema, idempotent record + push-retry
   AGENTS.md     "STOP — security critical, ห้ามแก้, ถาม user"
-contracts/    ← interface เล็กๆ ระหว่าง core↔edge (DonationEvent, OverlayEvent, stage protocol) — เปลี่ยนน้อย
+contracts/    ← interface เล็กๆ ระหว่าง core↔edge (TipEvent, OverlayEvent, stage protocol) — เปลี่ยนน้อย
 app/          ← Safe Edge (vibecode สบาย)
   overlay/      template, theme, animation
-  donate/       donate page
-  stages/       process_donation stages (filter, tts)  ← register เข้า contracts/
+  tip/          tip page
+  stages/       process_tip stages (filter, tts)  ← register เข้า contracts/
   settings.json config-over-code
   AGENTS.md     "แก้ตรงนี้ได้ เสร็จแล้วรัน make verify"
 tests/        ← make verify (security invariants จาก SPEC §11)
@@ -568,18 +568,18 @@ AGENTS.md / CLAUDE.md / .cursorrules   ← root: ชี้ทาง + กฎร�
 2. **ช่วง amount min–max** ที่เหมาะ? (วางไว้ ฿20–฿100,000) และ message length cap (วางไว้ 200 ตัว) — ตัวเลขนี้โอเคไหมz
    -ขั้นต่ำขอ 10บาท
    %%review-claude: ฿10 ใช้ไม่ได้ — Omise min charge THB = **฿20** (2000 satang) เป็น hard limit ([currency-and-amount](https://docs.omise.co/currency-and-amount)). ตั้ง min = ฿20. max ฿100,000 OK (เพดาน Omise ฿150,000). message cap 200 = OK.%%
-3. **overlay token**: ใส่ token ใน URL พอสำหรับ PoC ไหม (overlay เปิด public ผ่าน tunnel ใครรู้ URL อ่าน donation ได้) หรือยังไม่กังวลใน PoC
+3. **overlay token**: ใส่ token ใน URL พอสำหรับ PoC ไหม (overlay เปิด public ผ่าน tunnel ใครรู้ URL อ่าน tip ได้) หรือยังไม่กังวลใน PoC
    -เรื่อง overlay นี่ไม่แน่ใจเพราะว่ามันเคยใช้ obs แต่ไม่ใช่ว่ามันอยู่ local เดียวกันเหรอไม่น่า public ไปข้างนอก
-   %%review-claude: คุณคิดถูก + เป็นการ simplify ที่ดี. overlay = OBS browser source รันบนเครื่อง streamer (เครื่องเดียวกับ backend) → ต่อ backend ผ่าน **localhost** ได้ ไม่ต้อง expose ผ่าน tunnel เลย → ลบ attack surface "overlay public" + ปม token-in-URL ทิ้งได้. tunnel เหลือแค่ donate page + webhook. ผล: §5.2/§7 ต้องแก้ (overlay ออกจาก public list), token ยังเก็บไว้เป็น default-deny กันพลาด แต่ไม่ critical แล้ว.
+   %%review-claude: คุณคิดถูก + เป็นการ simplify ที่ดี. overlay = OBS browser source รันบนเครื่อง streamer (เครื่องเดียวกับ backend) → ต่อ backend ผ่าน **localhost** ได้ ไม่ต้อง expose ผ่าน tunnel เลย → ลบ attack surface "overlay public" + ปม token-in-URL ทิ้งได้. tunnel เหลือแค่ tip page + webhook. ผล: §5.2/§7 ต้องแก้ (overlay ออกจาก public list), token ยังเก็บไว้เป็น default-deny กันพลาด แต่ไม่ critical แล้ว.
    **remote OBS (คนละ network — สาย tech):** ออกแบบเผื่อ = ใช่ แต่ **ไม่ต้อง build อะไรเพิ่ม seam มีฟรีอยู่แล้ว** ถ้า: (1) overlay page served จาก backend → SSE ต่อแบบ same-origin (relative URL) → OBS ชี้ localhost (local) หรือ public-url (remote) โค้ดเดียวกัน (2) เก็บ `?token=` ไว้ (§7). → remote = **config flip ล้วน** (เปิด /overlay ใน tunnel + ใช้ token), zero code. SSE ผ่าน tunnel ได้ (เหตุผล D4). กับดัก: ตอน simplify เป็น localhost **อย่าลบ token** — นั่นคือ seam, ลบแล้วต้องเขียนใหม่. default=local/no-token-friction, advanced=remote+token (document ใน SETUP, ปม token-in-URL กลับมาเป็นภาระคนเลือกเอง).%%
-4. **donate page หลังจ่าย**: poll status endpoint (เลือกไว้) — ต้องการให้ donate page โชว์ "สำเร็จ/หมดเวลา" ด้วยไหม หรือแค่ขึ้น overlay พอ
+4. **tip page หลังจ่าย**: poll status endpoint (เลือกไว้) — ต้องการให้ tip page โชว์ "สำเร็จ/หมดเวลา" ด้วยไหม หรือแค่ขึ้น overlay พอ
    -มี feedback ให้ donor รับรู้ได้
-5. ingress ของ tunnel: แยก **subdomain** (donate./overlay.) หรือ **path** (/、/overlay) — มี preference ไหม
+5. ingress ของ tunnel: แยก **subdomain** (tip./overlay.) หรือ **path** (/、/overlay) — มี preference ไหม
    -ลองแนะนำมาเพราะว่าไม่รู้ว่า user จะเอา domain ไปทำอะไรอย่างอื่นไหม
-   %%review-claude: แนะนำ **path-based** — `/` = donate page, `/webhooks/omise` = webhook. domain เดียว, tunnel config ชิ้นเดียว, ง่ายสุดสำหรับ non-tech. overlay ไม่ต้องมี ingress (ดู Q3 = localhost). ถ้า user อยากเอา domain ไปทำอย่างอื่นด้วย → แยก subdomain (donate.) ทีหลังได้แบบ zero-code (แค่ config Cloudflare) ไม่ต้อง lock ตอนนี้.%%
+   %%review-claude: แนะนำ **path-based** — `/` = tip page, `/webhooks/omise` = webhook. domain เดียว, tunnel config ชิ้นเดียว, ง่ายสุดสำหรับ non-tech. overlay ไม่ต้องมี ingress (ดู Q3 = localhost). ถ้า user อยากเอา domain ไปทำอย่างอื่นด้วย → แยก subdomain (tip.) ทีหลังได้แบบ zero-code (แค่ config Cloudflare) ไม่ต้อง lock ตอนนี้.%%
 6. **anti-abuse ใน PoC**: ยืนยันว่า PoC build แค่ชั้นฐาน (gate + cap + rate limit) ใช่ไหม หรืออยากได้ amount-tier / word-filter ตั้งแต่ PoC เลย (กระทบ scope)
    -ขอเลย req นี้ค่อนข้างจำเป็นเนื่องจากจะมีคนที่ tip คำแปลก ๆ มาอ่านให้รำคาญ
-   %%review-claude: รับทราบ — **word-filter เลื่อนเข้า PoC** (จากเดิม future §12.3). กระทบ scope: เพิ่ม `banned_words` ใน settings.json + 1 stage ใน `process_donation()` seam (D11/§12.3) ที่กรอง/mask ก่อน push. ฐาน gate+cap+rate-limit เดิมยังอยู่. ของจริงเขียนตอน build (Q11 = ออกแบบก่อน). (note: คุณใช้ "tip" อีกแล้ว → wording finding)%%
+   %%review-claude: รับทราบ — **word-filter เลื่อนเข้า PoC** (จากเดิม future §12.3). กระทบ scope: เพิ่ม `banned_words` ใน settings.json + 1 stage ใน `process_tip()` seam (D11/§12.3) ที่กรอง/mask ก่อน push. ฐาน gate+cap+rate-limit เดิมยังอยู่. ของจริงเขียนตอน build (Q11 = ออกแบบก่อน). (note: คุณใช้ "tip" อีกแล้ว → wording finding)%%
 7. **TTS provider ตัวแรก** ที่อยากรองรับ (Google / Azure / ElevenLabs / อื่น) — ไว้ออกแบบ interface ให้ตรง
    -ไม่แน่ใจว่าส่วนมากใช้อะไร แต่ขอ google
 8. **config surface**: เห็นด้วยไหมว่า config หลัก (amount/tier/สี/ข้อความ/banned-words) ควรอยู่ใน `settings.json` + CSS theme เดียว เพื่อให้ vibecode ไม่ต้องแตะ Python — มีอะไรอยากให้เป็น config เพิ่ม

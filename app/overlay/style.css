@@ -1,0 +1,78 @@
+/* Overlay styles — Safe Edge, edit freely */
+/* Background transparent for OBS */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: transparent;
+  font-family: 'Segoe UI', 'Noto Sans Thai', sans-serif;
+  overflow: hidden;
+}
+
+#overlay-container {
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.tip-card {
+  background: rgba(15, 15, 15, 0.92);
+  border: 1px solid rgba(124, 92, 252, 0.6);
+  border-left: 4px solid #7c5cfc;
+  border-radius: 10px;
+  padding: 12px 16px;
+  max-width: 400px;
+  opacity: 0;
+  transform: translateX(-20px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.tip-card.entering {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.tip-card.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.tip-card.leaving {
+  animation: slide-out 0.4s ease forwards;
+}
+
+@keyframes slide-out {
+  to { opacity: 0; transform: translateX(-20px); }
+}
+
+.tip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.tip-name {
+  font-weight: bold;
+  font-size: 1rem;
+  color: #e8e8e8;
+}
+
+.tip-amount {
+  font-weight: bold;
+  font-size: 1.1rem;
+  color: #7c5cfc;
+}
+
+.tip-message {
+  font-size: 0.9rem;
+  color: #ccc;
+  line-height: 1.4;
+  margin-top: 4px;
+  word-break: break-word;
+}

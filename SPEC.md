@@ -13,7 +13,7 @@
 
 - **เครื่องเดียว**: streamer มีคอม stream เครื่องเดียวที่แรงพอรัน Docker ได้ ทุก service รันบนเครื่องนี้
 - **Self-host**: ออกเน็ตผ่าน Cloudflare Tunnel (cloudflared) เท่านั้น ไม่เปิด inbound port
-- **Gate ด้วย live status**: หน้า donate เปิดให้จ่ายเฉพาะตอน streamer กำลัง live (เช็คผ่าน OBS WebSocket)
+- **Gate ด้วย live status**: หน้า tip เปิดให้จ่ายเฉพาะตอน streamer กำลัง live (เช็คผ่าน OBS WebSocket)
 - **Bring-your-own-Omise**: streamer ใช้บัญชี Omise ของตัวเอง ระบบไม่ถือเงิน เงินวิ่ง donor → Omise → บัญชี streamer โดยตรง
 - **PromptPay เป็นหลัก** (async, ได้ webhook ปกติ) รองรับ card ด้วยได้
 
@@ -29,17 +29,17 @@ services:
 ```
 
 - backend เชื่อม OBS WebSocket ผ่าน `host.docker.internal:4455`
-- endpoint สาธารณะผ่าน tunnel: donate page, webhook, overlay
+- endpoint สาธารณะผ่าน tunnel: tip page, webhook, overlay
 - endpoint ภายใน (`/live-status` ถ้าใช้ internal เท่านั้น) อย่า expose เกินจำเป็น
 
 ## 3. Flow หลัก
 
-1. donor เปิดหน้า donate → frontend เรียก `GET /live-status`
+1. donor เปิดหน้า tip → frontend เรียก `GET /live-status`
 2. ถ้าไม่ live → แสดง "ยังไม่ได้ไลฟ์" ไม่ render form
 3. ถ้า live → frontend `POST /api/charge` → **backend สร้าง source+charge ฝั่ง server ด้วย skey** (PromptPay, ไม่โหลด Omise.js — D2) → คืน QR (card รุ่นหลังถึงกลับมาใช้ Omise.js+SRI ด้วย pkey)
 4. donor จ่าย → Omise ส่ง `charge.complete` webhook มาที่ backend
 5. backend **verify signature** → ดึง amount/metadata จาก payload ที่ verified → เก็บ DB (idempotent) → push ไป overlay
-6. overlay แสดง donation (escape ทุก output)
+6. overlay แสดง tip (escape ทุก output)
 7. ตอน backend start: reconciliation job ดึง charge ที่ successful ตั้งแต่ cursor ล่าสุดมา replay กันพลาดตอนเครื่องดับ
 
 ## 4. ข้อบังคับด้านความปลอดภัย (NON-NEGOTIABLE — ทำครบทุกข้อ)
@@ -88,7 +88,7 @@ Omise เซ็น webhook ด้วย HMAC-SHA256 (เมื่อตั้ง
 ### 4.9 อื่นๆ
 - อย่า log secret / charge object เต็ม / stack trace ไป client
 - ปิด debug mode ใน production
-- rate limit ที่ webhook + donate endpoint
+- rate limit ที่ webhook + tip endpoint
 - pin dependency version (lock file commit) + pin base image ด้วย digest
 
 ## 5. Live detection
@@ -101,7 +101,7 @@ Omise เซ็น webhook ด้วย HMAC-SHA256 (เมื่อตั้ง
 - ตอน backend start: ดึง charge status `successful` จาก Omise API ตั้งแต่ timestamp cursor ล่าสุดที่เก็บใน DB
 - replay เข้า pipeline เดียวกับ webhook (ผ่าน idempotency check) → ไม่ trigger ซ้ำของเก่า
 - เก็บ cursor หลังประมวลผลสำเร็จ
-- เหตุผล: Omise **ไม่การันตี retry** webhook ที่ fail → ต้องมี fallback นี้กัน donation หายตอนเครื่องดับ
+- เหตุผล: Omise **ไม่การันตี retry** webhook ที่ fail → ต้องมี fallback นี้กัน tip หายตอนเครื่องดับ
 
 ## 7. Deliverables ที่อยากได้จาก PoC
 1. `docker-compose.yml` ครบ 5 service ตั้งค่า secure
@@ -109,7 +109,7 @@ Omise เซ็น webhook ด้วย HMAC-SHA256 (เมื่อตั้ง
 3. backend (FastAPI): webhook handler (signature verify ครบ 4.1–4.3), `/live-status`, **สร้าง charge ฝั่ง server (skey, PromptPay)**, reconciliation, push **SSE** (D4), startup secret validation, rate-limit key = `CF-Connecting-IP` (หลัง tunnel)
 4. frontend **tip page**: live gate + `POST /api/charge` (backend สร้าง charge ฝั่ง server, **ไม่ใช้ Omise.js** — D2) + แสดง QR + poll status + feedback หลังจ่าย. **min ฿20** (Omise hard limit), message cap 200
 5. overlay page (**local เท่านั้น, ไม่ผ่าน tunnel**): subscribe SSE (`id:` + Last-Event-ID replay) + render sanitize (textContent) + CSP เข้ม + **alert sound** (static, `media-src 'self'`)
-6. **`process_donation` seam (1 stage จริง ใน PoC)**: word-filter (banned-words จาก `settings.json`) + amount-tiers (`< X` ไม่โชว์ข้อความ) — ปรับจาก config
+6. **`process_tip` seam (1 stage จริง ใน PoC)**: word-filter (banned-words จาก `settings.json`) + amount-tiers (`< X` ไม่โชว์ข้อความ) — ปรับจาก config
 7. `settings.json` + CSS theme (config-over-code, **ไม่มี config UI**) + README/guide: prerequisites + deploy + ตั้ง Cloudflare/OBS/Omise dashboard + test ด้วย Omise test mode ก่อน live
 
 ## 8. Tech stack
@@ -133,13 +133,13 @@ Omise เซ็น webhook ด้วย HMAC-SHA256 (เมื่อตั้ง
 3. DB schema + idempotency + reconciliation
 4. `/live-status` + OBS WebSocket
 5. push mechanism (WS/SSE)
-6. frontend donate + overlay
+6. frontend tip + overlay
 7. README/guide
 8. ทดสอบ flow ด้วย Omise test mode
 
 ## 11. เกณฑ์ว่า PoC สำเร็จ
-- จ่ายเงินใน Omise test mode → donation โผล่บน overlay จริง
+- จ่ายเงินใน Omise test mode → tip โผล่บน overlay จริง
 - ยิง fake webhook ที่ signature ผิด → ถูกปฏิเสธ 401
-- ปิด backend ระหว่างมี charge → เปิดใหม่แล้ว reconciliation ดึง donation ที่พลาดกลับมาได้
+- ปิด backend ระหว่างมี charge → เปิดใหม่แล้ว reconciliation ดึง tip ที่พลาดกลับมาได้
 - ส่งข้อความ donor ที่มี `<script>` → overlay แสดงเป็น text ไม่รันโค้ด
 - start backend โดยไม่ตั้ง secret → refuse start พร้อมบอกว่าขาดอะไร

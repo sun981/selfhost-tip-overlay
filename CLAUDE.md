@@ -19,7 +19,7 @@ Self-host **streamer tip overlay** that replaces TipMe (shut down). Donor pays v
 
 ## Hard rules that span files (easy to violate)
 
-1. **Naming: user-facing = "Tip", never "Donate/Donation".** Product = **Tip Overlay System**. Why: Omise prohibited-businesses §1.3 lists "Donations" under banned financial services + Thai เรี่ยไร law. **Internal code identifiers stay conventional** (`donations` table, `donor_name`, `charge`, `process_donation`) — they are not user-facing, not seen by Omise/KYC, and match Omise API vocab; **do not churn them**. Doc product names are renamed already; the OS folder `Donation Selfhost` is a pending *manual* rename (local-only, not a policy risk). See the `[!warning] Wording` + `[!success] LOCKED` callouts at top of ARCHITECTURE.md.
+1. **Naming: "Tip" / "Supporter" everywhere — never "Donate/Donation".** Product = **Tip Overlay System**. Why: Omise prohibited-businesses §1.3 lists "Donations" under banned financial services + Thai เรี่ยไร law. This applies to **both user-facing text AND code identifiers** — the project is open source so identifiers are visible. Current identifiers: `tips` table, `supporter_name`, `TipEvent`, `process_tip`. The OS folder `Donation Selfhost` is a pending *manual* rename (local-only). See the `[!warning] Wording` + `[!success] LOCKED` callouts at top of ARCHITECTURE.md.
 
 2. **Webhook signature verify is THE critical path** (SPEC §4.1, ARCHITECTURE §8.3, verified against [Omise docs](https://docs.omise.co/api-webhooks)):
    - raw body only (never re-serialize JSON), signed payload = `<Omise-Signature-Timestamp>` + `.` + `<raw_body utf-8>`
@@ -37,15 +37,15 @@ Self-host **streamer tip overlay** that replaces TipMe (shut down). Donor pays v
 
 7. **Secure Core vs Safe Edge** (§13) governs where code lives and what may be AI-edited:
    - `core/` = signature verify, secret load, charge create (skey), idempotency, replay, CORS, startup self-test, payment adapter. **Human-review-only**, hook-protected (§13.5). A `PreToolUse` hook (built last) forces user confirmation before editing `core/`.
-   - `app/` = overlay/donate look, `process_donation` stages, `settings.json`. **Vibecode-safe.**
-   - `contracts/` = stable interfaces (`DonationEvent`, `OverlayEvent`). Dependency is one-way: `app/` → `contracts/` ← `core/`; **core never imports app**.
+   - `app/` = overlay/tip look, `process_tip` stages, `settings.json`. **Vibecode-safe.**
+   - `contracts/` = stable interfaces (`TipEvent`, `OverlayEvent`). Dependency is one-way: `app/` → `contracts/` ← `core/`; **core never imports app**.
    - Security comes from **structure + server-set CSP + fail-closed startup self-test**, not from author discipline.
 
 ## Locked PoC scope (2026-06-03, review round 2) — authoritative
 
 The single source of truth for scope is the **`[!success] LOCKED` block at the top of ARCHITECTURE.md**. Summary:
 
-- **In PoC:** PromptPay (server-side charge, no Omise.js) · SQLite · overlay **local** (localhost, not via tunnel; OBS is on the same machine) · ingress **path-based** (`/` = tip page, `/webhooks/omise`) · **min ฿20** (Omise hard limit) · `process_donation` runs **one real stage = word-filter** (+ **amount-tiers**, both config-driven from `settings.json`) · **alert sound** (static audio) · post-pay feedback to the donor · config = `settings.json` + CSS theme only (**no config UI** — user edits files).
+- **In PoC:** PromptPay (server-side charge, no Omise.js) · SQLite · overlay **local** (localhost, not via tunnel; OBS is on the same machine) · ingress **path-based** (`/` = tip page, `/webhooks/omise`) · **min ฿20** (Omise hard limit) · `process_tip` runs **one real stage = word-filter** (+ **amount-tiers**, both config-driven from `settings.json`) · **alert sound** (static audio) · post-pay feedback to the donor · config = `settings.json` + CSS theme only (**no config UI** — user edits files).
 - **Roadmap (do NOT build now):** card (Omise.js + SRI returns), TTS (provider chosen = Google), **donor-pays-fee toggle**, goal bar / top-tipper, config UI, moderation hold-queue, remote OBS (the seam is already designed).
 - **Defaults (use unless told otherwise):** message cap 200 chars · privacy purge 90 days · on reconciliation, do not push to the overlay if `paid_at` is older than ~10 min before startup (still record it).
 

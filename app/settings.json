@@ -1,0 +1,10 @@
+{
+  "banned_words": [],
+  "amount_tiers": {
+    "show_message_min": 2000
+  },
+  "alert_sound": "sounds/alert.mp3",
+  "message_max_length": 200,
+  "privacy_purge_days": 90,
+  "recon_old_threshold_minutes": 10
+}

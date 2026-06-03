@@ -1,0 +1,25 @@
+FROM python:3.12.3-slim@sha256:541fe9b5b40c99f25ca9bdbb90c17b29e0d36268491e8247a20e0ef060ce1c36
+
+WORKDIR /app
+
+# Install deps as root, then drop to non-root for runtime
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy source (no secrets — they come in via env_file at runtime)
+COPY core/ ./core/
+COPY contracts/ ./contracts/
+COPY app/stages/ ./app/stages/
+COPY app/process_tip.py ./app/
+COPY app/settings.json ./app/
+COPY main.py .
+
+# Create non-root user
+RUN useradd -r -u 1000 -g 0 appuser && \
+    chown -R appuser:0 /app
+
+USER 1000
+
+EXPOSE 8000
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

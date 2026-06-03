@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ส่ง Tip</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <div id="loading" class="screen">
+      <p>กำลังโหลด...</p>
+    </div>
+
+    <div id="offline" class="screen hidden">
+      <div class="card">
+        <h1>😴 ยังไม่ได้ไลฟ์</h1>
+        <p>Streamer ยังไม่ได้เริ่มไลฟ์ในขณะนี้</p>
+        <p class="hint">รอจนกว่าจะไลฟ์แล้วรีเฟรชหน้านี้</p>
+      </div>
+    </div>
+
+    <div id="form-screen" class="screen hidden">
+      <div class="card">
+        <h1>💸 ส่ง Tip</h1>
+        <p class="fee-note">Omise เก็บค่า gateway 1.65%+VAT จากยอดที่ streamer ได้รับ</p>
+
+        <form id="tip-form" novalidate>
+          <div class="field">
+            <label for="donor_name">ชื่อ (ไม่บังคับ)</label>
+            <input
+              type="text"
+              id="donor_name"
+              name="donor_name"
+              maxlength="50"
+              placeholder="ชื่อที่จะแสดงบนจอ"
+              autocomplete="off"
+            >
+          </div>
+
+          <div class="field">
+            <label for="amount">จำนวนเงิน (บาท)</label>
+            <input
+              type="number"
+              id="amount"
+              name="amount"
+              min="20"
+              max="100000"
+              step="1"
+              placeholder="ขั้นต่ำ ฿20"
+              required
+            >
+            <span class="field-error hidden" id="amount-error"></span>
+          </div>
+
+          <div class="field">
+            <label for="message">ข้อความ (ไม่บังคับ, สูงสุด 200 ตัวอักษร)</label>
+            <textarea
+              id="message"
+              name="message"
+              maxlength="200"
+              rows="3"
+              placeholder="ข้อความถึง streamer..."
+            ></textarea>
+            <span class="char-count" id="char-count">0 / 200</span>
+          </div>
+
+          <button type="submit" id="submit-btn">ส่ง Tip ด้วย PromptPay →</button>
+        </form>
+      </div>
+    </div>
+
+    <div id="qr-screen" class="screen hidden">
+      <div class="card">
+        <h1>📱 สแกน QR เพื่อชำระเงิน</h1>
+        <div id="qr-container">
+          <img id="qr-img" src="" alt="QR Code PromptPay" width="240" height="240">
+        </div>
+        <p id="qr-amount" class="amount-display"></p>
+        <p class="hint">เปิดแอปธนาคารแล้วสแกน QR Code</p>
+        <div id="qr-status">
+          <span class="spinner"></span> รอการชำระเงิน...
+        </div>
+        <p class="hint small" id="qr-expire-note">QR จะหมดอายุใน 15 นาที</p>
+      </div>
+    </div>
+
+    <div id="success-screen" class="screen hidden">
+      <div class="card success">
+        <h1>🎉 ขอบคุณ!</h1>
+        <p>เงินถึงแล้ว — Tip ของคุณจะขึ้นจอ streamer เดี๋ยวนี้</p>
+        <button id="send-another" onclick="resetForm()">ส่ง Tip อีกครั้ง</button>
+      </div>
+    </div>
+
+    <div id="error-screen" class="screen hidden">
+      <div class="card error">
+        <h1>❌ เกิดข้อผิดพลาด</h1>
+        <p id="error-msg"></p>
+        <button onclick="resetForm()">ลองใหม่</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // No third-party JS (D2, D6)
+    const MIN_SATANG = 2000;  // ฿20
+
+    let currentChargeId = null;
+    let pollInterval = null;
+    let pollCount = 0;
+    const MAX_POLLS = 180;  // ~7.5 min at 2.5s
+
+    function show(screenId) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+      document.getElementById(screenId).classList.remove('hidden');
+    }
+
+    function resetForm() {
+      if (pollInterval) clearInterval(pollInterval);
+      currentChargeId = null;
+      pollCount = 0;
+      document.getElementById('tip-form').reset();
+      document.getElementById('char-count').textContent = '0 / 200';
+      show('form-screen');
+    }
+
+    function showError(msg) {
+      document.getElementById('error-msg').textContent = msg;
+      show('error-screen');
+    }
+
+    // Live gate check on load
+    async function checkLive() {
+      try {
+        const resp = await fetch('/api/live-status');
+        const data = await resp.json();
+        if (data.live) {
+          show('form-screen');
+        } else {
+          show('offline');
+        }
+      } catch {
+        show('offline');
+      }
+    }
+
+    // Character counter for message
+    document.getElementById('message').addEventListener('input', function() {
+      const len = this.value.length;
+      document.getElementById('char-count').textContent = `${len} / 200`;
+    });
+
+    // Form submit
+    document.getElementById('tip-form').addEventListener('submit', async function(e) {
+      e.preventDefault();
+
+      const amountBaht = parseInt(document.getElementById('amount').value, 10);
+      const amountSatang = amountBaht * 100;
+      const donorName = document.getElementById('donor_name').value.trim().slice(0, 50);
+      const message = document.getElementById('message').value.trim().slice(0, 200);
+
+      // Client-side validation (server also validates)
+      if (!amountBaht || amountSatang < MIN_SATANG) {
+        const errEl = document.getElementById('amount-error');
+        errEl.textContent = 'ขั้นต่ำ ฿20';
+        errEl.classList.remove('hidden');
+        return;
+      }
+      document.getElementById('amount-error').classList.add('hidden');
+
+      const submitBtn = document.getElementById('submit-btn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'กำลังสร้าง QR...';
+
+      try {
+        const resp = await fetch('/api/charge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: amountSatang,
+            currency: 'thb',
+            donor_name: donorName,
+            message: message,
+          }),
+        });
+
+        if (resp.status === 403) {
+          show('offline');
+          return;
+        }
+
+        if (!resp.ok) {
+          const err = await resp.json().catch(() => ({}));
+          showError(err.detail || 'ไม่สามารถสร้าง QR ได้ กรุณาลองใหม่');
+          return;
+        }
+
+        const data = await resp.json();
+        currentChargeId = data.charge_id;
+
+        // Show QR screen
+        document.getElementById('qr-img').src = data.qr_url;
+        document.getElementById('qr-amount').textContent =
+          `฿${(data.amount / 100).toLocaleString('th-TH')}`;
+        show('qr-screen');
+
+        // Start polling for payment confirmation
+        pollCount = 0;
+        pollInterval = setInterval(pollStatus, 2500);
+
+      } catch {
+        showError('เกิดข้อผิดพลาด กรุณาลองใหม่');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'ส่ง Tip ด้วย PromptPay →';
+      }
+    });
+
+    async function pollStatus() {
+      if (!currentChargeId) return;
+      pollCount++;
+
+      if (pollCount > MAX_POLLS) {
+        clearInterval(pollInterval);
+        showError('QR หมดอายุแล้ว กรุณาสร้าง QR ใหม่');
+        return;
+      }
+
+      try {
+        const resp = await fetch(`/api/charge/${currentChargeId}/status`);
+        if (!resp.ok) return;
+
+        const data = await resp.json();
+        if (data.status === 'successful') {
+          clearInterval(pollInterval);
+          show('success-screen');
+        } else if (data.status === 'failed' || data.status === 'expired') {
+          clearInterval(pollInterval);
+          showError('การชำระเงินไม่สำเร็จ กรุณาลองใหม่');
+        }
+        // pending → keep polling
+      } catch {
+        // network hiccup — keep polling
+      }
+    }
+
+    // Start
+    checkLive();
+  </script>
+</body>
+</html>
