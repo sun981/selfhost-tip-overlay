@@ -1,8 +1,10 @@
-# Donation Overlay System — PoC Spec
+# Tip Overlay System — PoC Spec
 
-โปรเจกต์: ระบบรับ donation สำหรับ streamer แบบ self-host (open source) ใช้ Omise เป็น payment gateway
+โปรเจกต์: ระบบรับ **tip** สำหรับ streamer แบบ self-host (open source) ใช้ Omise เป็น payment gateway
 เป้าหมาย PoC: พิสูจน์ flow ครบวง — donor จ่าย → Omise webhook → verify → push ขึ้น overlay — โดยปลอดภัยและ "เงินไม่หาย"
 
+> **อ่านก่อน (2026-06-03):** เอกสารนี้คือ **binding security spec** — §4 (NON-NEGOTIABLE) + §11 (success criteria) ยังผูกมัดทุกข้อ. แต่ส่วน *implementation* บางจุดของ spec นี้ **ล้าสมัย** — `ARCHITECTURE.md` (โดยเฉพาะ **LOCKED block** บนสุด + decisions D1–D15) คือชั้น concrete ที่ **authoritative** และ override ข้อเสนอ impl ของ spec นี้เมื่อขัดกัน (ไม่ override security §4). ที่ override แล้ว: PromptPay = **สร้าง charge ฝั่ง server ไม่ใช้ Omise.js** (D2), DB = **SQLite** (D5), overlay = **local ไม่ผ่าน tunnel**, wording = **"Tip"** (user-facing). PoC scope เพิ่ม: word-filter + amount-tiers + alert sound.
+>
 > หมายเหตุสำหรับ agent: นี่คือ PoC ห้าม over-engineer ทำให้ flow หลักทำงานได้จริงและปลอดภัยตามข้อบังคับด้านล่างก่อน ส่วน UI สวยงามเป็นเรื่องรอง
 
 ---
@@ -19,10 +21,10 @@
 
 ```
 services:
-  backend       — FastAPI: webhook receiver, /live-status, reconciliation, push (WS/SSE), ถือ skey/webhook secret
-  frontend      — static donate page: เช็ค live-status, โหลด Omise.js (pinned + SRI), สร้าง charge ด้วย pkey
-  overlay       — static page เปิดเป็น OBS browser source: subscribe push, render donation (sanitize เสมอ)
-  postgres      — donation records + idempotency + reconciliation cursor
+  backend       — FastAPI: webhook receiver, /live-status, reconciliation, push (SSE — D4), ถือ skey/webhook secret + สร้าง charge ฝั่ง server (skey)
+  frontend      — static tip page: เช็ค live-status, POST /api/charge → backend สร้าง source+charge (PromptPay, **ไม่ใช้ Omise.js** — D2), แสดง QR
+  overlay       — static page เปิดเป็น OBS browser source: subscribe SSE, render (sanitize เสมอ) — **local เท่านั้น ไม่ผ่าน tunnel**
+  db            — **SQLite** (D5, schema portable → Postgres): tip records + idempotency + reconciliation cursor
   cloudflared   — Cloudflare Tunnel (outbound only)
 ```
 
@@ -34,7 +36,7 @@ services:
 
 1. donor เปิดหน้า donate → frontend เรียก `GET /live-status`
 2. ถ้าไม่ live → แสดง "ยังไม่ได้ไลฟ์" ไม่ render form
-3. ถ้า live → โหลด Omise.js สร้าง PromptPay QR / card token ด้วย **pkey**
+3. ถ้า live → frontend `POST /api/charge` → **backend สร้าง source+charge ฝั่ง server ด้วย skey** (PromptPay, ไม่โหลด Omise.js — D2) → คืน QR (card รุ่นหลังถึงกลับมาใช้ Omise.js+SRI ด้วย pkey)
 4. donor จ่าย → Omise ส่ง `charge.complete` webhook มาที่ backend
 5. backend **verify signature** → ดึง amount/metadata จาก payload ที่ verified → เก็บ DB (idempotent) → push ไป overlay
 6. overlay แสดง donation (escape ทุก output)
@@ -104,23 +106,26 @@ Omise เซ็น webhook ด้วย HMAC-SHA256 (เมื่อตั้ง
 ## 7. Deliverables ที่อยากได้จาก PoC
 1. `docker-compose.yml` ครบ 5 service ตั้งค่า secure
 2. `.env.example` (placeholder + comment เป็น inline doc), `.gitignore`, `.dockerignore`
-3. backend (FastAPI): webhook handler (signature verify ครบ 4.1–4.3), `/live-status`, reconciliation, push (WS หรือ SSE), startup secret validation
-4. frontend donate page: live gate + Omise.js (pinned + SRI) + PromptPay
-5. overlay page: subscribe + render แบบ sanitize + CSP
-6. README/guide: prerequisites + ขั้นตอน deploy + การตั้ง Cloudflare/OBS/Omise dashboard + test ด้วย Omise test mode ก่อน live
+3. backend (FastAPI): webhook handler (signature verify ครบ 4.1–4.3), `/live-status`, **สร้าง charge ฝั่ง server (skey, PromptPay)**, reconciliation, push **SSE** (D4), startup secret validation, rate-limit key = `CF-Connecting-IP` (หลัง tunnel)
+4. frontend **tip page**: live gate + `POST /api/charge` (backend สร้าง charge ฝั่ง server, **ไม่ใช้ Omise.js** — D2) + แสดง QR + poll status + feedback หลังจ่าย. **min ฿20** (Omise hard limit), message cap 200
+5. overlay page (**local เท่านั้น, ไม่ผ่าน tunnel**): subscribe SSE (`id:` + Last-Event-ID replay) + render sanitize (textContent) + CSP เข้ม + **alert sound** (static, `media-src 'self'`)
+6. **`process_donation` seam (1 stage จริง ใน PoC)**: word-filter (banned-words จาก `settings.json`) + amount-tiers (`< X` ไม่โชว์ข้อความ) — ปรับจาก config
+7. `settings.json` + CSS theme (config-over-code, **ไม่มี config UI**) + README/guide: prerequisites + deploy + ตั้ง Cloudflare/OBS/Omise dashboard + test ด้วย Omise test mode ก่อน live
 
 ## 8. Tech stack
-- Backend: Python + FastAPI
-- DB: PostgreSQL (PoC ใช้ SQLite ก่อนก็ได้ถ้าเร็วกว่า แต่ schema เผื่อย้าย Postgres)
-- Frontend/overlay: static (vanilla หรือ Vite + เฟรมเวิร์กเบาๆ) — เลือกให้ build ง่าย
-- Tunnel: cloudflared
-- License: MIT หรือ Apache-2.0 + DISCLAIMER ว่าผู้ deploy รับผิดชอบ KYC/ภาษี/เงื่อนไข Omise เอง
+- Backend: Python + FastAPI + uvicorn + httpx (Omise API)
+- DB: **SQLite** สำหรับ PoC (D5) ผ่าน SQLAlchemy + `DATABASE_URL`, schema portable → Postgres. WAL mode
+- Frontend/overlay: **vanilla static ไม่มี build step** (D6) — audit ง่าย ไม่ต้องมี node toolchain
+- Tunnel: cloudflared (path-based ingress)
+- License: **MIT** (D8) + DISCLAIMER ว่าผู้ deploy รับผิดชอบ KYC/ภาษี/เงื่อนไข Omise เอง
 
 ## 9. สิ่งที่จงใจตัดออกจาก PoC (อย่าเพิ่งทำ)
 - โหมด Vercel/cloud (โฟกัส self-host อย่างเดียว)
 - Docker secrets / Vault (ใช้ .env ก็พอสำหรับ PoC ใส่เป็น advanced option ใน docs ทีหลัง)
 - ระบบ auth/admin panel เต็มรูปแบบ
 - multi-streamer / hosted SaaS
+- **card payment** (PromptPay-only ก่อน; card รุ่นหลัง = Omise.js + SRI กลับมา)
+- **TTS** (เลือก provider=Google ไว้แล้ว แต่ build รุ่นหลัง), **goal bar / top-tipper**, **donor-pays-fee toggle**, **config UI** (PoC ใช้ settings.json ล้วน), **remote OBS** (seam พร้อม)
 
 ## 10. ลำดับแนะนำให้ agent ทำ
 1. โครงไฟล์ + compose + env/.gitignore/.dockerignore + startup validation

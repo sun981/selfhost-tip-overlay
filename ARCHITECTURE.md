@@ -1,4 +1,4 @@
-# Architecture — Donation Overlay System (PoC)
+# Architecture — Tip Overlay System (PoC)
 
 เอกสารนี้ลงรายละเอียดสถาปัตยกรรมเชิงลึกของระบบเพื่อ review ก่อนเขียนโค้ด ครอบคลุม: tech stack + เหตุผล, โครงสร้างระบบ, data model, dataflow ทุกเส้น, security architecture, deployment topology, failure modes
 อ้างอิงข้อบังคับจาก [`SPEC.md`](./SPEC.md) — เอกสารนี้ไม่ override ข้อบังคับด้านความปลอดภัย แต่ทำให้มันเป็นรูปธรรม
@@ -13,11 +13,18 @@
 > - **สรุป: instinct ถูก — เปลี่ยนเป็น Tip.** เป็น **rename cascade** ไม่ใช่แค่ label: ชื่อโปรเจกต์ "Donation Overlay System", โฟลเดอร์ "Donation Selfhost", หน้า/ปุ่ม donate, claim "0% fee" §1, SPEC.md
 > - เพิ่มเติม (recall ไม่ใช่ fetched-source — verify กับทนายเอง): ไทยมี **พ.ร.บ.ควบคุมการเรี่ยไร พ.ศ.2487** — solicit donation สาธารณะอาจต้องขออนุญาต; framing "Tip = ค่าตอบแทนบริการ" เลี่ยงประเด็นเรี่ยไรด้วย
 
+> [!success] LOCKED — review round 2 (2026-06-03) — ข้อสรุปสุดท้าย ใช้สร้าง PoC (supersede §14 + note กระจัดกระจาย)
+> **Naming:** product = **"Tip Overlay System"**. user-facing ทุกจุด (หน้า/ปุ่ม/README/ข้อความถึงผู้ให้/donor) = **"Tip"** — ห้าม "Donate/Donation". **internal identifier เก็บเดิม** (`donations` table, `donor_name`, `charge`, `process_donation`) — ไม่ใช่ user-facing, ไม่โดน Omise/กฎหมาย, ตรง Omise API vocab → ไม่ churn
+> **PoC scope (ทำรอบนี้):** PromptPay server-side ไม่ใช้ Omise.js (D2) · SQLite (D5) · **min ฿20** (Omise hard limit, §14 Q2) · overlay **local** (localhost, OBS เครื่องเดียวกับ backend, ไม่ผ่าน tunnel — §14 Q3) · ingress **path-based** (`/`=tip page, `/webhooks/omise` — §14 Q5) · **word-filter** + **amount-tiers** (ปรับจาก `settings.json`) + **alert sound** (static) · feedback หลังจ่าย = มี · config = **`settings.json` + CSS theme เท่านั้น ไม่มี config UI** (user custom เองผ่านไฟล์ — §14 Q8)
+> **Roadmap (ยังไม่ทำ):** card (+Omise.js+SRI) · TTS (provider=Google ตอน build) · **donor-pays-fee toggle** (§14 Q10) · goal bar / top-donor · config UI · moderation hold queue · remote OBS (seam พร้อมแล้ว §8.5)
+> **Defaults (ไม่ค้าน = ใช้เลย):** message cap 200 ตัว · privacy purge 90 วัน · recon ไม่ push ขึ้นจอถ้า `paid_at` เก่ากว่า ~10 นาทีก่อน startup (ยัง record เข้า DB)
+> **Build handoff:** PoC จะสร้างโดย session ใหม่ (Sonnet + advisor) ที่**ไม่มี chat history นี้** → docs ต้องครบในตัว. ลำดับสร้าง = SPEC §10. ค้าง: rename folder (manual step ดู handoff)
+
 ---
 
 ## 1. Purpose & scope
 
-ระบบรับ donation สำหรับ streamer แบบ self-host มาแทน TipMe (ปิดตัว) จุดขายเทียบ TipMe:
+ระบบรับ **tip** สำหรับ streamer แบบ self-host มาแทน TipMe (ปิดตัว) จุดขายเทียบ TipMe: (user-facing = "Tip"; internal identifier เช่น `donations`/`donor` เก็บเดิม ดู LOCKED block บนสุด)
 
 | | TipMe | ระบบนี้ |
 |---|---|---|
@@ -29,7 +36,7 @@
 > ⚠️ อย่าเคลม "ฟรี/0%" ลอยๆ — ระบบ**ไม่หักค่าคอม** แต่ donor/streamer ยังจ่ายค่า gateway ของ Omise (PromptPay 1.65%+VAT) README ต้องระบุชัดว่าใครรับภาระ fee (default = หักจากยอดที่ streamer ได้รับ)
 
 **Scope ของ PoC นี้**: PromptPay เท่านั้น, เครื่องเดียว, docker-compose, พิสูจน์ว่า "จ่าย → verify → ขึ้น overlay → เงินไม่หาย" ทำงานจริงและปลอดภัย
-**ไม่อยู่ใน PoC** (ดู §15 Roadmap): card, donate goal, top donor, TTS, alert sound/image, multi-streamer
+**ไม่อยู่ใน PoC** (ดู §15 Roadmap): card, tip goal, top tipper, TTS, alert image, donor-pays-fee toggle, multi-streamer  (🔧[rev] **เข้า PoC แล้ว**: word-filter, amount-tiers, alert sound)
 
 ### 1.1 Distribution model — fork-and-own (ไม่ maintain ส่วนกลาง)
 - **ปล่อย OSS, ไม่เก็บเงิน, ไม่ commit ว่าจะ maintain** — แต่ละ deploy เป็น instance ของ streamer เองอยู่แล้ว (ไม่มี service กลาง) → fork-and-own เข้ากับ self-host โดยธรรมชาติ ผู้สร้างเป็น "originator" ไม่ใช่ "maintainer"
@@ -147,7 +154,7 @@ PromptPay **ไม่มีข้อมูลบัตร** (ไม่มี PAN
 |---|---|---|
 | `backend` | API, webhook verify, charge create, reconciliation, SSE, OBS client, ถือ skey/webhook secret | ผ่าน tunnel เฉพาะ path `/api/*` + `/webhooks/*` |
 | `frontend` | donate page (static, nginx) | public ผ่าน tunnel |
-| `overlay` | overlay page (static, nginx, CSP เข้ม) | public ผ่าน tunnel **+ token ใน URL** |
+| `overlay` | overlay page (static, nginx, CSP เข้ม) | 🔧[rev 2026-06-03] **local เท่านั้น** (OBS browser source เครื่องเดียวกับ backend → localhost, **ไม่ผ่าน tunnel**). token ยังมี (default-deny). remote OBS = เปิด tunnel+token เอง(config, สาย tech §8.5) |
 | `db` | SQLite ผ่าน volume (PoC) — service จริงจะมีเมื่อย้าย Postgres | internal เท่านั้น |
 | `cloudflared` | tunnel | outbound only |
 
@@ -155,8 +162,8 @@ PromptPay **ไม่มีข้อมูลบัตร** (ไม่มี PAN
 
 ### 5.2 ส่วนที่ public vs internal
 
-- **Public ผ่าน tunnel**: donate page, overlay page (+token), `GET /api/live-status`, `POST /api/charge`, `GET /api/charge/{id}/status`, `GET /api/events/overlay`, `POST /webhooks/omise`
-- **Internal/host-only เท่านั้น**: OBS WebSocket 4455, DB, skey, webhook secret
+- **Public ผ่าน tunnel** (path-based, 🔧[rev]): tip page (`/`), `GET /api/live-status`, `POST /api/charge`, `GET /api/charge/{id}/status`, `POST /webhooks/omise`
+- **Local/host-only เท่านั้น** (🔧[rev] overlay ย้ายมาที่นี่): **overlay page + `GET /api/events/overlay`** (OBS ต่อ localhost ไม่ผ่าน tunnel), OBS WebSocket 4455, DB, skey, webhook secret
 - `/api/live-status` คืนแค่ `{live: bool}` — เปิด public ได้เพราะ donate page (รันใน browser) ต้องเรียก
 
 ---
@@ -432,7 +439,7 @@ verified charge
 | payment gate | ต้องจ่ายจริงถึงส่งข้อความ | ✅ ฐาน |
 | length/charset cap | จำกัดที่ `POST /charge` | ✅ |
 | rate limit `/charge` per IP | กัน flood สร้าง charge | ✅ |
-| amount tiers | `< X` ไม่โชว์ข้อความ, `≥ X` โชว์, `≥ Y` TTS (config) | seam |
+| amount tiers | `< X` ไม่โชว์ข้อความ, `≥ X` โชว์ (config `settings.json`) | 🔧✅ **PoC** (§14 Q6) — ส่วน `≥ Y` → TTS ยังเป็น seam (TTS roadmap) |
 | word filter | banned-words list (`settings.json`) → mask/DROP, exact+normalize (เว้นวรรค/ตัวคล้าย), ไม่ทำ ML | 🔧✅ **PoC** (P0#3) |
 | moderation hold | HOLD เข้า queue, streamer อนุมัติก่อนโชว์ | seam |
 | refund + block | streamer refund charge ของ hater ผ่าน Omise API → คืนเงิน + ตัดแรงจูงใจ | roadmap |
@@ -568,8 +575,9 @@ AGENTS.md / CLAUDE.md / .cursorrules   ← root: ชี้ทาง + กฎร�
 ## 15. Roadmap (post-PoC — ยังไม่ทำ)
 
 ฟีเจอร์ table-stakes ของ TipMe ที่ผู้ใช้จะคาดหวัง (build ทีหลัง ไม่ใช่ตอนนี้ ตาม SPEC §9):
-- **Donate Goal** bar, **Top Donor**, **Latest Donate**
-- Alert sound/image, **TTS** อ่านข้อความ
+- **Tip Goal** bar, **Top Tipper**, **Latest Tip**
+- alert **image** (sound = เข้า PoC แล้ว §12.4), **TTS** อ่านข้อความ
+- 🔧[rev 2026-06-03] **donor-pays-fee toggle** (donor เลือกจ่าย Omise fee ให้ streamer ได้เต็มจำนวน — §14 Q10)
 - **Card** payment (กลับมาใช้ Omise.js + SRI)
 - payment methods เพิ่ม (TrueMoney Wallet ฯลฯ ที่ Omise รองรับ)
 - ย้าย SQLite → Postgres (schema เผื่อไว้แล้ว)
