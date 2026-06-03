@@ -412,6 +412,27 @@ PaymentGateway:
 
 ---
 
+## 11. Capacity & limits (🔧[rev 2026-06-03] estimate — ยังไม่ load-test)
+
+> **"concurrent user" ≠ viewer.** viewer อยู่บน Twitch/YT ไม่แตะ backend. overlay = SSE **1 conn local**. backend โดนแค่คน**กำลังจ่าย tip** = เศษเสี้ยวของ viewer → คิดที่ **tip rate** ไม่ใช่ viewer count
+
+**Bottleneck (เรียงตามที่ชนก่อน):**
+
+| ชั้น | เพดาน |
+|---|---|
+| **Omise API** | **~15–20 charge-create/s** (HTTP 429 ถ้าเกิน; งานใหญ่ติดต่อ Omise ล่วงหน้า) — [rate-limiting](https://docs.omise.co/api-rate-limiting). ✅ design poll status จาก **DB local ไม่ poll Omise** → ตรง best-practice "use webhooks not polling" |
+| **CPU เครื่อง stream** | แชร์กับ OBS+เกม → ต้องเบา (resource limit §10.1) = ข้อจริงเชิงปฏิบัติ ไม่ใช่ throughput |
+| **SQLite single-writer (WAL)** | พัน+ write/s บน SSD ≫ tip rate จริง → ไม่ชน |
+| **FastAPI/uvicorn async** | ร้อย–พัน conn I/O-bound → ไม่ชน |
+
+**ตัวเลข:** tip ใหม่ต่อเนื่อง **~15–20/s** (Omise-bound) · คนค้างจ่าย + poll DB local **หลักร้อยสบาย** · demand จริง streamer ท็อป **<1 tip/s** sustained, burst 2–3/s → architecture เผื่อ **10–20×**
+
+**ที่จะงอ:** viral burst >20 charge/s เฉียด 429 → client jitter + retry-on-429 backoff · pending ค้าง poll → expire หลัง N นาที + poll backoff · ถ้าจะเป็น multi-tenant platform จริง (คนละ use case) → Postgres + เครื่องแยก (D15)
+
+**TODO ก่อนเคลมตัวเลข:** ยิง `k6`/`locust` 1 scenario (burst tip) — อย่าเคลมลอยๆ (ตรง ethos §1 fee-honesty)
+
+---
+
 ## 12. Extensibility & anti-abuse (วาง seam ตอนนี้ — build ทีหลัง)
 
 ### 12.1 หลักการ: payment gate = ฐานกัน hater
