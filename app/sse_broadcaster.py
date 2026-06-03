@@ -13,8 +13,13 @@ from contracts.events import OverlayEvent
 _subscribers: list[asyncio.Queue] = []
 
 
-async def subscribe() -> AsyncGenerator[str, None]:
-    """Yield SSE-formatted strings. Caller holds one queue slot per connection."""
+async def subscribe() -> AsyncGenerator[dict, None]:
+    """
+    Yield EventSourceResponse dicts ({"id", "data"}) — NOT pre-formatted SSE strings.
+    sse_starlette adds the `id:`/`data:` framing; yielding a raw "id:..\ndata:.." here
+    double-wraps it ("data: id: N" / "data: data: {..}") and the browser drops the event.
+    Must match the replay branch shape in routes/sse.py. One queue slot per connection.
+    """
     q: asyncio.Queue = asyncio.Queue(maxsize=50)
     _subscribers.append(q)
     try:
@@ -27,7 +32,10 @@ async def subscribe() -> AsyncGenerator[str, None]:
                 "message": event.message,
                 "event_seq": event.event_seq,
             }
-            yield f"id: {event.event_seq}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+            yield {
+                "id": str(event.event_seq),
+                "data": json.dumps(data, ensure_ascii=False),
+            }
     finally:
         _subscribers.remove(q)
 

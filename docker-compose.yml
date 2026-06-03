@@ -65,7 +65,12 @@ services:
     ports:
       - "127.0.0.1:8080:80"
     networks:
+      # internal: reach backend (DNS) for the /api/ proxy
       - internal
+      # overlay_host: non-internal bridge so 127.0.0.1:8080 can actually publish.
+      # An internal:true network cannot realize a host port — overlay needs this
+      # interface for OBS/localhost. Only overlay sits here; backend stays isolated.
+      - overlay_host
     security_opt:
       - no-new-privileges:true
     deploy:
@@ -103,6 +108,9 @@ networks:
     driver: bridge
     internal: true
   tunnel:
+    driver: bridge
+  # Host↔overlay only. Non-internal so 127.0.0.1:8080 publishes; backend never joins.
+  overlay_host:
     driver: bridge
 
 volumes:

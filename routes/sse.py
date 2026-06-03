@@ -48,11 +48,11 @@ async def _event_generator(
                 }, ensure_ascii=False),
             }
 
-    # Stay live — forward from broadcaster
-    async for raw in sse_broadcaster.subscribe():
+    # Stay live — forward from broadcaster (already {"id","data"}, same shape as replay)
+    async for item in sse_broadcaster.subscribe():
         if await request.is_disconnected():
             return
-        yield {"data": raw.strip()}
+        yield item
 
 
 @router.get("/api/events/overlay")
