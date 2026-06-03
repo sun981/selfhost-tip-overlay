@@ -141,6 +141,16 @@ app.include_router(charge_route.router)
 app.include_router(live_route.router)
 app.include_router(sse_route.router)
 
+# DEV-only test trigger — mounted ONLY when explicitly enabled (never in prod).
+# Lets you fire a fake overlay alert without a payment. See routes/dev.py.
+if os.environ.get("DEV_TEST_TRIGGER") == "1":
+    from routes import dev as dev_route
+    app.include_router(dev_route.router)
+    logger.warning(
+        "DEV_TEST_TRIGGER=1 — POST /api/dev/test-tip is LIVE (bypasses payment). "
+        "Never enable this in production."
+    )
+
 
 @app.get("/health")
 async def health():
