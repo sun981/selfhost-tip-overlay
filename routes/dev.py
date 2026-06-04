@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import hmac
 import os
 from datetime import datetime, timezone
 
@@ -32,7 +33,9 @@ async def test_tip(
 ):
     """Run a fake tip through process_tip, then broadcast to connected overlays."""
     overlay_token = os.environ.get("OVERLAY_TOKEN", "")
-    if not overlay_token or token != overlay_token:
+    if not overlay_token or not hmac.compare_digest(
+        token.encode("utf-8"), overlay_token.encode("utf-8")
+    ):
         raise HTTPException(status_code=401, detail="Invalid token")
 
     db = request.app.state.db

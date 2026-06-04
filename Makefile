@@ -11,7 +11,11 @@ verify: lint-imports
 	@echo "=== Running security invariant tests ==="
 	$(PYTEST_RUN) -v --tb=short
 	@echo "=== Checking for known CVEs ==="
-	pip-audit -r requirements.txt --progress-spinner off || true
+	@# HARD gate (was `|| true`, which silently passed when pip-audit was absent).
+	@# Self-bootstrap pip-audit into a cached venv so the check has no host prereq.
+	@python3 -m venv .audit-venv >/dev/null 2>&1 || true
+	@.audit-venv/bin/pip install -q --disable-pip-version-check pip-audit
+	.audit-venv/bin/pip-audit -r requirements.txt --progress-spinner off
 	@echo "=== Import direction check ==="
 	python3 tools/check_imports.py
 	@echo "=== All checks passed ==="

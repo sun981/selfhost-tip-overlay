@@ -5,6 +5,7 @@ Fresh connection (no Last-Event-ID) = start live, no replay (prevent burst).
 """
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import os
@@ -58,7 +59,9 @@ async def _event_generator(
 @router.get("/api/events/overlay")
 async def overlay_sse(request: Request, token: str = ""):
     overlay_token = os.environ.get("OVERLAY_TOKEN", "")
-    if not overlay_token or token != overlay_token:
+    if not overlay_token or not hmac.compare_digest(
+        token.encode("utf-8"), overlay_token.encode("utf-8")
+    ):
         raise HTTPException(status_code=401, detail="Invalid token")
 
     last_event_id = request.headers.get("last-event-id")
@@ -73,7 +76,9 @@ async def overlay_sse(request: Request, token: str = ""):
 async def recent_tips(request: Request, after: int = 0, token: str = ""):
     """Backfill endpoint for manual gap recovery. Token-gated."""
     overlay_token = os.environ.get("OVERLAY_TOKEN", "")
-    if not overlay_token or token != overlay_token:
+    if not overlay_token or not hmac.compare_digest(
+        token.encode("utf-8"), overlay_token.encode("utf-8")
+    ):
         raise HTTPException(status_code=401, detail="Invalid token")
 
     db: DBOps = request.app.state.db
