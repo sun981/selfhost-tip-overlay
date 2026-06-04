@@ -2,16 +2,35 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Repo status: design phase, no code yet
+## Repo status
 
-This is **not yet a codebase** — it is an Obsidian vault holding two design docs for a not-yet-built PoC. There is no source code, no build, no tests, and (currently) no git. Do not invent commands or claim things run.
+The PoC is **built and runs** (`docker compose`). Source: `core/` `app/` `routes/` `contracts/` `main.py`; tests in `tests/`; gate = `make verify` (green). The OBS-overlay money path works end to end in Omise test mode.
 
-- `SPEC.md` — **binding spec**. §4 = NON-NEGOTIABLE security requirements, §11 = PoC success criteria. Treat §4 as invariants, not suggestions.
-- `ARCHITECTURE.md` — concrete design layer: decisions **D1–D15** (§3), dataflows (§8), security map (§9), Secure Core/Safe Edge (§13). It **supersedes SPEC's *implementation* suggestions** where they differ, but **never overrides SPEC §4 security**.
+## Where the docs live (map)
+
+Markdown docs were reorganized into `docs/` (this index is the source of truth for *where*):
+
+| Doc | Path | What |
+|---|---|---|
+| Spec (binding) | `docs/design/SPEC.md` | §4 security invariants, §11 success criteria |
+| Architecture | `docs/design/ARCHITECTURE.md` | decisions D1–D15, dataflows, Secure Core/Safe Edge, **LOCKED** scope |
+| Setup guide | `docs/guides/SETUP.md` | install/deploy (Omise · Cloudflare · OBS · `.env`) |
+| Testing guide | `docs/guides/TESTING.md` | `make verify` + manual checks |
+| Vibecode guide | `docs/guides/VIBECODE.md` | safely editing tip page + overlay |
+| Security audit | `docs/security/SECURITY-REVIEW.md` | pre-open-source audit (point-in-time) |
+| Security policy | `SECURITY.md` (root) | how to report a vulnerability |
+| Readme | `README.md` (root) | project landing + links |
+| AI zone rules | `AGENTS.md` (root), `app/AGENTS.md`, `core/AGENTS.md` | edit-zone guidance |
+
+`reports/` is owned by a separate (user-simulating) agent — do not edit it.
+
+### The two design docs are authoritative
+- `docs/design/SPEC.md` — **binding spec**. §4 = NON-NEGOTIABLE security requirements, §11 = PoC success criteria. Treat §4 as invariants, not suggestions.
+- `docs/design/ARCHITECTURE.md` — concrete design layer: decisions **D1–D15** (§3), dataflows (§8), security map (§9), Secure Core/Safe Edge (§13). It **supersedes SPEC's *implementation* suggestions** where they differ, but **never overrides SPEC §4 security**.
 - When SPEC and ARCHITECTURE conflict on *how* (not on security), ARCHITECTURE wins. Examples: PoC uses **SQLite** not Postgres (D5); PromptPay flow creates charge **server-side with no Omise.js** (D2, SPEC §3 step 3 is outdated for PromptPay).
 
 ### Review annotations in the docs
-ARCHITECTURE.md contains review markers from prior sessions — `%%review-claude: ...%%` (Obsidian comments, hidden in reading view) and `🔧[rev YYYY-MM-DD] ...` (applied design changes, tagged `P0#/P1#/P2#`). Grep `🔧` or `%%review` to find them. They are real decisions, not noise.
+`docs/design/ARCHITECTURE.md` contains review markers from prior sessions — `%%review-claude: ...%%` (Obsidian comments, hidden in reading view) and `🔧[rev YYYY-MM-DD] ...` (applied design changes, tagged `P0#/P1#/P2#`). Grep `🔧` or `%%review` to find them. They are real decisions, not noise.
 
 ## What this is
 
@@ -19,7 +38,7 @@ Self-host **streamer tip overlay** that replaces TipMe (shut down). Donor pays v
 
 ## Hard rules that span files (easy to violate)
 
-1. **Naming: "Tip" / "Supporter" everywhere — never "Donate/Donation".** Product = **Tip Overlay System**. Why: Omise prohibited-businesses §1.3 lists "Donations" under banned financial services + Thai เรี่ยไร law. This applies to **both user-facing text AND code identifiers** — the project is open source so identifiers are visible. Current identifiers: `tips` table, `supporter_name`, `TipEvent`, `process_tip`. The OS folder `Donation Selfhost` is a pending *manual* rename (local-only). See the `[!warning] Wording` + `[!success] LOCKED` callouts at top of ARCHITECTURE.md.
+1. **Naming: "Tip" / "Supporter" everywhere — never "Donate/Donation".** Product = **Tip Overlay System**. Why: Omise prohibited-businesses §1.3 lists "Donations" under banned financial services + Thai เรี่ยไร law. This applies to **both user-facing text AND code identifiers** — the project is open source so identifiers are visible. Current identifiers: `tips` table, `supporter_name`, `TipEvent`, `process_tip`. The OS folder `Donation Selfhost` is a pending *manual* rename (local-only). See the `[!warning] Wording` + `[!success] LOCKED` callouts at top of `docs/design/ARCHITECTURE.md`.
 
 2. **Webhook signature verify is THE critical path** (SPEC §4.1, ARCHITECTURE §8.3, verified against [Omise docs](https://docs.omise.co/api-webhooks)):
    - raw body only (never re-serialize JSON), signed payload = `<Omise-Signature-Timestamp>` + `.` + `<raw_body utf-8>`
@@ -43,7 +62,7 @@ Self-host **streamer tip overlay** that replaces TipMe (shut down). Donor pays v
 
 ## Locked PoC scope (2026-06-03, review round 2) — authoritative
 
-The single source of truth for scope is the **`[!success] LOCKED` block at the top of ARCHITECTURE.md**. Summary:
+The single source of truth for scope is the **`[!success] LOCKED` block at the top of `docs/design/ARCHITECTURE.md`**. Summary:
 
 - **In PoC:** PromptPay (server-side charge, no Omise.js) · SQLite · overlay **local** (localhost, not via tunnel; OBS is on the same machine) · ingress **path-based** (`/` = tip page, `/webhooks/omise`) · **min ฿20** (Omise hard limit) · `process_tip` runs **one real stage = word-filter** (+ **amount-tiers**, both config-driven from `settings.json`) · **alert sound** (static audio) · post-pay feedback to the donor · config = `settings.json` + CSS theme only (**no config UI** — user edits files).
 - **Roadmap (do NOT build now):** card (Omise.js + SRI returns), TTS (provider chosen = Google), **donor-pays-fee toggle**, goal bar / top-tipper, config UI, moderation hold-queue, remote OBS (the seam is already designed).

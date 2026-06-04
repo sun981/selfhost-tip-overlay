@@ -42,3 +42,15 @@ These must always pass:
 - Replay (old timestamp) → 401
 - `<script>` in message → renders as text
 - Missing secrets → startup refuses
+
+## Where the docs live
+
+Markdown docs are under `docs/`:
+- `docs/design/SPEC.md` — binding spec (§4 security, §11 success criteria)
+- `docs/design/ARCHITECTURE.md` — decisions D1–D15, Secure Core/Safe Edge, LOCKED scope
+- `docs/guides/SETUP.md` — install/deploy · `docs/guides/TESTING.md` — `make verify` + manual checks
+- `docs/guides/VIBECODE.md` — safely editing the tip page + overlay
+- `docs/security/SECURITY-REVIEW.md` — security audit · `SECURITY.md` (root) — disclosure policy
+- `README.md` (root) — project landing · `core/AGENTS.md` / `app/AGENTS.md` — per-zone rules
+
+`reports/` is owned by a separate (user-simulating) agent — do not edit it.

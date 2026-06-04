@@ -385,7 +385,7 @@ PaymentGateway:
 
 ### 10.2 Docs set (วางตอนนี้ เขียนตอน build — สำคัญเพราะ target non-tech)
 - `README.md` — overview, value prop (+fee honesty §1), DISCLAIMER (KYC/ภาษี/fee เป็นของ deployer)
-- `SETUP.md` — guide ทีละขั้นสำหรับ non-tech: Omise (สมัคร+fee+test mode) → Cloudflare+domain → OBS → `.env` → `docker compose up` → ทดสอบตาม SPEC §11
+- `docs/guides/SETUP.md` — guide ทีละขั้นสำหรับ non-tech: Omise (สมัคร+fee+test mode) → Cloudflare+domain → OBS → `.env` → `docker compose up` → ทดสอบตาม SPEC §11
 - `AGENTS.md` / `CLAUDE.md` — vibecode guardrails: core ห้ามแตะ, แก้ที่ไหนได้, "แก้เสร็จรัน `make verify`" (โยง §13)
 - `SECURITY.md` — trust model, Secure Core คืออะไร, คำเคลมซื่อสัตย์ (§13), วิธี report ช่องโหว่
 - `CONFIG.md` — อ้างอิง `settings.json`/env ทุกตัว (โยง config-over-code §13.2)

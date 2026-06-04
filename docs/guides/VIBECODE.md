@@ -147,4 +147,4 @@ Ask the owner — don't vibecode these:
 - the CSP in `nginx/*.conf` (loosening it defeats Rule 1 — there's almost always a
   self-hosted way that keeps it strict)
 
-Full zone rules live in `AGENTS.md` (root) and `core/AGENTS.md`. Security spec = `SPEC.md` §4/§11.
+Full zone rules live in `../../AGENTS.md` (repo root) and `../../core/AGENTS.md`. Security spec = `../design/SPEC.md` §4/§11.
