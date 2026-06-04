@@ -24,8 +24,17 @@ should block `git push --public` is the **dependency CVEs (F1)**, which the repo
 - **F3 fixed:** overlay-token comparison now uses `hmac.compare_digest` (bytes-encoded) at
   `routes/sse.py` (2 sites) and `routes/dev.py`.
 - **F5 fixed:** removed unused `slowapi` pin from `requirements.txt`.
-- **Still open (backlog):** F2 (token is a public read credential in the URL), F4 (tip-page
-  CSP), F6 (`next_seq` TOCTOU), F7 (rate-limit header). Plus: add `SECURITY.md`.
+- **F2 fixed:** `nginx/frontend.conf` now 404s `/api/events/`, `/api/tips/`, `/api/dev/` on
+  the public ingress (overlay/PII/dev endpoints — the tip page never calls them; the overlay
+  reaches them locally on 127.0.0.1:8080). Verified: those 3 → 404, tip endpoints still 200.
+- **F4 fixed:** strict CSP on the tip page (`default-src 'none'; script-src 'self'; …`,
+  served by `frontend.conf`); inline `<script>` moved to `app/tip/app.js`, the two
+  `onclick=` handlers replaced with `addEventListener`. Verified: CSP header present, page +
+  `app.js` load 200, `nginx -t` ok.
+- **`SECURITY.md` added** (disclosure policy; owner must fill the contact line).
+- **Still open (backlog):** F6 (`next_seq` TOCTOU, low/money-safe), F7 (rate-limit trusts
+  `CF-Connecting-IP` — document the Cloudflare assumption). Tier-2: CI + Dependabot + gitleaks.
+  Core-guard hook (§13.5) intentionally **deferred** so Claude can keep editing `core/`.
 
 ---
 
