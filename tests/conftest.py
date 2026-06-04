@@ -19,13 +19,17 @@ from typing import Generator
 import pytest
 
 # Set test env vars before importing anything that calls secrets.validate()
-os.environ.setdefault("OMISE_SECRET_KEY", "skey_test_fixture")
-os.environ.setdefault("OMISE_WEBHOOK_SECRET", base64.b64encode(b"test-secret-32-bytes-padding!!").decode())
-os.environ.setdefault("CORS_ORIGIN", "https://test.example.com")
-os.environ.setdefault("OVERLAY_TOKEN", "test-overlay-token")
-os.environ.setdefault("OBS_WS_PASSWORD", "test-obs-password")
-os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
-os.environ.setdefault("DEBUG", "false")
+# Force-assign (NOT setdefault): the gate runs inside the backend container where
+# env_file: .env already populates these. setdefault would no-op, so the app would
+# build its adapter with the REAL webhook secret while tests sign with the fixture
+# secret → valid-sig mismatch (401). Tests must be hermetic regardless of host env.
+os.environ["OMISE_SECRET_KEY"] = "skey_test_fixture"
+os.environ["OMISE_WEBHOOK_SECRET"] = base64.b64encode(b"test-secret-32-bytes-padding!!").decode()
+os.environ["CORS_ORIGIN"] = "https://test.example.com"
+os.environ["OVERLAY_TOKEN"] = "test-overlay-token"
+os.environ["OBS_WS_PASSWORD"] = "test-obs-password"
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["DEBUG"] = "false"
 
 from sqlalchemy import create_engine
 
