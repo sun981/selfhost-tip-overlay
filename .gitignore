@@ -19,6 +19,9 @@ cert.pem
 .DS_Store
 Thumbs.db
 
+# Separate (user-simulating) agent's output — owned elsewhere, not tracked here
+reports/
+
 # Python (for when code lands)
 __pycache__/
 *.py[cod]

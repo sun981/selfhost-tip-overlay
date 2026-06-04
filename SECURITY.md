@@ -6,8 +6,8 @@ Thanks for helping keep the Tip Overlay System and its self-hosters safe.
 
 **Please report privately — do not open a public issue for security bugs.**
 
-- Preferred: GitHub → **Security** tab → **Report a vulnerability** (private advisory).
-- Or email: kongphob981@gmail.com
+- GitHub → **Security** tab → **Report a vulnerability** (opens a private advisory to the
+  maintainers). This is the only reporting channel — there is no public security inbox.
 
 Please include: affected file/endpoint, steps to reproduce, impact, and a suggested fix if
 you have one. We aim to acknowledge within **72 hours** and to ship a fix or mitigation for
