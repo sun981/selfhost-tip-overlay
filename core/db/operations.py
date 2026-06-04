@@ -181,6 +181,23 @@ class DBOps:
                 return None
             return {"status": row[0], "amount": row[1]}
 
+    def get_tip(self, charge_id: str) -> Optional[dict]:
+        """
+        Full tip row for manual overlay replay (read-only). None if not found.
+        supporter_name/message may be NULL after privacy purge — replay shows them blank.
+        """
+        with self._engine.connect() as conn:
+            result = conn.execute(
+                text(
+                    "SELECT charge_id, amount, currency, supporter_name, message, "
+                    "       source_type, status, paid_at "
+                    "FROM tips WHERE charge_id=:charge_id"
+                ),
+                {"charge_id": charge_id},
+            )
+            row = result.fetchone()
+            return dict(row._mapping) if row else None
+
     def update_status(self, charge_id: str, status: str) -> None:
         """Update status for non-successful terminal states (failed, expired)."""
         with self._engine.begin() as conn:

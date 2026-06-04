@@ -232,3 +232,41 @@ class TestRateLimit:
 
         assert statuses[0] == 403, f"under-limit request should hit live gate, got {statuses[0]}"
         assert 429 in statuses, f"expected a 429 after 30/min, got {sorted(set(statuses))}"
+
+
+# ── Manual overlay replay (POST /api/tips/{id}/replay) — token-gated, local-only ──
+
+class TestReplay:
+
+    def test_replay_requires_token_and_rebroadcasts(self, client: TestClient):
+        """A recorded successful tip can be re-shown: 401 without token, 404 for an
+        unknown id, and 200 {replayed:true, event_seq} for a real one."""
+        charge_id = "chrg_replay_1"
+        raw_body = json.dumps({
+            "key": "charge.complete",
+            "data": {
+                "object": "charge", "id": charge_id, "status": "successful",
+                "amount": 5000, "currency": "thb",
+                "metadata": {"supporter_name": "Dave", "message": "wp"},
+                "paid_at": "2026-06-04T00:00:00Z",
+            },
+        }).encode()
+        ts_str, sig = make_valid_signature(raw_body)
+        assert client.post(
+            "/webhooks/omise", content=raw_body,
+            headers={"content-type": "application/json", **make_headers(ts_str, sig)},
+        ).status_code == 200
+
+        # no token → 401
+        assert client.post(f"/api/tips/{charge_id}/replay").status_code == 401
+        # unknown id → 404
+        assert client.post(
+            "/api/tips/chrg_does_not_exist/replay", params={"token": "test-overlay-token"}
+        ).status_code == 404
+        # valid → 200, rebroadcast with a fresh event_seq (no re-record of money)
+        resp = client.post(f"/api/tips/{charge_id}/replay", params={"token": "test-overlay-token"})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["replayed"] is True
+        assert body["charge_id"] == charge_id
+        assert isinstance(body["event_seq"], int)
