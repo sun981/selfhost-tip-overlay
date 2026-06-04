@@ -45,11 +45,15 @@ should block `git push --public` is the **dependency CVEs (F1)**, which the repo
 - **Still open:** F6 (`next_seq` TOCTOU, low/money-safe); core-guard hook (§13.5) intentionally
   **deferred** so Claude can keep editing `core/`.
 
-> **Separate bug found during F4 e2e (NOT a security issue, but a showstopper for real use):**
-> `core/payment/omise.py` `proxy_qr` doesn't follow Omise's 302 on the document-download and
-> hardcodes `image/png`, but the PromptPay QR is served as **`image/svg+xml`** behind a 302 →
-> the `/api/charge/{id}/qr` endpoint returns broken content (502/HTML), so **donors can't see
-> the QR to scan**. Fix: `follow_redirects=True` + return Omise's real content-type. Pending owner OK (core/ change).
+> **Separate showstopper found during F4 e2e — FIXED:** `core/payment/omise.py` `proxy_qr`
+> used `follow_redirects=False` and hardcoded `image/png`, but the PromptPay QR is served as
+> **`image/svg+xml`** behind a 302 → `/api/charge/{id}/qr` returned broken content, so donors
+> couldn't see the QR to scan. Fixed: `follow_redirects=True` (httpx strips auth on
+> cross-origin redirect → skey not leaked) + pass through Omise's real content-type. Also
+> hardened the QR response with `Content-Security-Policy: default-src 'none'; style-src
+> 'unsafe-inline'` + `nosniff` to neutralize the SVG-as-document XSS vector if the URL is
+> opened directly. **Browser-verified (Playwright): QR image loads (naturalWidth 106) and
+> serves 228 KB `image/svg+xml`.**
 
 ---
 

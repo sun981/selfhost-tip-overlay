@@ -140,8 +140,19 @@ async def get_qr(charge_id: str, request: Request):
         raise HTTPException(status_code=404, detail="QR not available")
 
     try:
-        png = adapter.proxy_qr(qr_uri)
+        content, content_type = adapter.proxy_qr(qr_uri)
     except Exception:
         raise HTTPException(status_code=502, detail="QR image unavailable")
 
-    return Response(content=png, media_type="image/png")
+    # Served same-origin (satisfies CSP img-src 'self'). Harden the response itself: a strict
+    # CSP neutralizes any script if the URL is opened directly (SVG-as-document XSS vector),
+    # while the image still renders fine inside the tip page's <img>.
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={
+            "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+            "X-Content-Type-Options": "nosniff",
+            "Cache-Control": "no-store",
+        },
+    )

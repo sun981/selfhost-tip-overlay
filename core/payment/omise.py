@@ -226,9 +226,18 @@ class OmiseAdapter:
 
     # ── QR proxy (D10) ──────────────────────────────────────────────────────
 
-    def proxy_qr(self, download_uri: str) -> bytes:
-        """Fetch QR PNG from Omise and return bytes. Served self to satisfy img-src 'self' CSP."""
-        with httpx.Client(auth=(self._skey, ""), timeout=15.0) as client:
+    def proxy_qr(self, download_uri: str) -> tuple[bytes, str]:
+        """
+        Fetch the QR image from Omise and return (bytes, content_type). Served from our own
+        origin so it satisfies the tip/overlay CSP img-src 'self'.
+
+        follow_redirects=True is REQUIRED: Omise's document-download 302-redirects to the
+        actual image, and the PromptPay QR is delivered as image/svg+xml (not PNG). httpx
+        drops the Authorization header on cross-origin redirects, so the secret key is not
+        leaked to the redirect target.
+        """
+        with httpx.Client(auth=(self._skey, ""), timeout=15.0, follow_redirects=True) as client:
             resp = client.get(download_uri)
             resp.raise_for_status()
-            return resp.content
+            content_type = resp.headers.get("content-type", "image/svg+xml").split(";")[0].strip()
+            return resp.content, content_type
