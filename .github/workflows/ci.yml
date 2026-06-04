@@ -1,0 +1,41 @@
+name: CI
+
+# Runs the security gate on every push/PR, plus weekly so newly-disclosed CVEs in the
+# pinned deps turn the build red even when nobody pushed (the hard pip-audit gate).
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"  # Mondays 06:00 UTC
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # compose has `env_file: .env`; tests force their own hermetic env, so a
+      # placeholder .env is enough to satisfy the file requirement.
+      - name: Provide placeholder .env
+        run: cp .env.example .env
+
+      - name: Build backend image
+        run: docker compose build backend
+
+      - name: make verify  # 31 security invariants + hard pip-audit CVE gate + import guard
+        run: make verify
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history so gitleaks can scan every commit
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

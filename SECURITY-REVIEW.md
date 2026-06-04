@@ -32,9 +32,24 @@ should block `git push --public` is the **dependency CVEs (F1)**, which the repo
   `onclick=` handlers replaced with `addEventListener`. Verified: CSP header present, page +
   `app.js` load 200, `nginx -t` ok.
 - **`SECURITY.md` added** (disclosure policy; owner must fill the contact line).
-- **Still open (backlog):** F6 (`next_seq` TOCTOU, low/money-safe), F7 (rate-limit trusts
-  `CF-Connecting-IP` — document the Cloudflare assumption). Tier-2: CI + Dependabot + gitleaks.
-  Core-guard hook (§13.5) intentionally **deferred** so Claude can keep editing `core/`.
+- **F7 fixed:** `core/ratelimit.py` `cf_key` now falls back to the unspoofable socket peer
+  (`request.client.host`) after CF-Connecting-IP / X-Forwarded-For, and documents that the
+  header trust assumes a Cloudflare/trusted proxy in front. Verified: `make verify` still green.
+- **Tier-2 added:** `.github/workflows/ci.yml` (runs `make verify` on push/PR + weekly to
+  catch newly-disclosed CVEs in the pins, + a `gitleaks` secret-scan job) and
+  `.github/dependabot.yml` (pip + github-actions + docker, weekly).
+- **F4 verified via Playwright** against the live tunnel: CSP header correct, `app.js` runs,
+  **zero CSP violations from our own code**. (Two violations seen were Cloudflare's
+  edge-injected Web Analytics beacon — our CSP correctly *blocks* it; disable CF Web
+  Analytics / Rocket Loader for the hostname to silence.)
+- **Still open:** F6 (`next_seq` TOCTOU, low/money-safe); core-guard hook (§13.5) intentionally
+  **deferred** so Claude can keep editing `core/`.
+
+> **Separate bug found during F4 e2e (NOT a security issue, but a showstopper for real use):**
+> `core/payment/omise.py` `proxy_qr` doesn't follow Omise's 302 on the document-download and
+> hardcodes `image/png`, but the PromptPay QR is served as **`image/svg+xml`** behind a 302 →
+> the `/api/charge/{id}/qr` endpoint returns broken content (502/HTML), so **donors can't see
+> the QR to scan**. Fix: `follow_redirects=True` + return Omise's real content-type. Pending owner OK (core/ change).
 
 ---
 

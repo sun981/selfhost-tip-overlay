@@ -19,12 +19,22 @@ from fastapi import HTTPException, Request
 
 def cf_key(request: Request) -> str:
     """
-    Rate-limit key = CF-Connecting-IP (set by Cloudflare Tunnel, ARCHITECTURE §9 P0#1).
-    Absent → first X-Forwarded-For hop, else 'unknown' (shared bucket).
+    Rate-limit key. Prefers CF-Connecting-IP (set authoritatively by Cloudflare Tunnel —
+    the intended deployment, ARCHITECTURE §9 P0#1), then the first X-Forwarded-For hop,
+    then the raw socket peer (request.client.host), which a client cannot spoof.
+
+    SECURITY (F7): CF-Connecting-IP and X-Forwarded-For are client-settable headers. They
+    are only trustworthy because Cloudflare overwrites CF-Connecting-IP at its edge and the
+    origin has no inbound port (tunnel-only). If you fork this and deploy WITHOUT a trusted
+    proxy in front, an attacker can rotate those headers to dodge the per-IP limit — the
+    socket-peer fallback below keeps the limiter honest in that case, but for real per-client
+    limiting you must keep a trusted proxy (Cloudflare/nginx) that sets these.
     """
     ip = request.headers.get("cf-connecting-ip")
     if not ip:
         ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    if not ip and request.client:
+        ip = request.client.host
     return ip or "unknown"
 
 

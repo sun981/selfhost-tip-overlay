@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # Python pins (requirements.txt) — keeps the CVE-clean floor current.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "security"]
+
+  # GitHub Actions versions used by CI.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Base image pin in Dockerfile.backend (python:3.12-slim digest).
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
