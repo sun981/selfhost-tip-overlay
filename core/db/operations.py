@@ -128,26 +128,33 @@ class DBOps:
             )
             return [dict(row._mapping) for row in result]
 
-    def mark_pushed(self, charge_id: str, event_seq: int) -> int:
+    def mark_pushed(self, charge_id: str) -> Optional[int]:
         """
-        Atomically mark charge as pushed.
-        UPDATE WHERE pushed_at IS NULL → rowcount 1 on first call, 0 if already pushed.
-        CALLER: emit SSE only if rowcount==1 (prevents double-push on concurrent delivery).
+        Atomically mark a charge as pushed AND allocate its event_seq in ONE statement.
+        Returns the allocated event_seq on the first call, or None if the charge was
+        already pushed — caller must then NOT broadcast (prevents double-push on
+        concurrent delivery).
+
+        F6 fix (TOCTOU): event_seq is computed by the subquery INSIDE this UPDATE, not
+        via a separate next_seq() read. An UPDATE holds the write lock while its SET
+        subquery evaluates, so two concurrent pushes can never observe the same MAX and
+        collide on a seq. (The old split — next_seq() read under a shared lock, then a
+        separate mark_pushed write — is exactly what let two tips share one event_seq.)
+        RETURNING hands the value back in the same round-trip; portable to Postgres.
         """
         with self._engine.begin() as conn:
-            result = conn.execute(
+            row = conn.execute(
                 text(
                     "UPDATE tips "
-                    "SET pushed_at=:now, event_seq=:seq "
-                    "WHERE charge_id=:charge_id AND pushed_at IS NULL"
+                    "SET pushed_at=:now, "
+                    "    event_seq=(SELECT COALESCE(MAX(event_seq), 0) + 1 "
+                    "               FROM tips WHERE event_seq IS NOT NULL) "
+                    "WHERE charge_id=:charge_id AND pushed_at IS NULL "
+                    "RETURNING event_seq"
                 ),
-                {
-                    "charge_id": charge_id,
-                    "now": datetime.now(timezone.utc),
-                    "seq": event_seq,
-                },
-            )
-            return result.rowcount
+                {"charge_id": charge_id, "now": datetime.now(timezone.utc)},
+            ).fetchone()
+            return row[0] if row else None
 
     def get_since_seq(self, last_seq: int, limit: int = 50) -> list[dict]:
         """
@@ -251,12 +258,22 @@ class DBOps:
             return result.scalar() or 1
 
     def purge_old(self, before: datetime) -> int:
-        """Delete supporter name/message from records older than `before`. Returns count."""
+        """
+        Null out supporter name/message from records older than `before`. Returns count.
+
+        Covers BOTH paid rows (paid_at) AND abandoned pending rows (created_at): a charge
+        the donor never completed stays status='pending' with paid_at=NULL, so a
+        `paid_at < :before` test alone is NULL→false for it and would retain that donor's
+        name/message forever — defeating the 90-day purge promise (PDPA). The created_at
+        clause sweeps those too.
+        """
         with self._engine.begin() as conn:
             result = conn.execute(
                 text(
                     "UPDATE tips SET supporter_name=NULL, message=NULL "
-                    "WHERE paid_at < :before AND supporter_name IS NOT NULL"
+                    "WHERE supporter_name IS NOT NULL "
+                    "  AND (paid_at < :before "
+                    "       OR (status='pending' AND created_at < :before))"
                 ),
                 {"before": before},
             )

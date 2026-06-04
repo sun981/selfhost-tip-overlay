@@ -156,7 +156,7 @@ class TestIdempotency:
         assert r2 == 0, "Second record should return rowcount=0 (idempotent)"
 
     def test_mark_pushed_atomic(self, db):
-        """mark_pushed returns 1 first time, 0 second time (no double push)."""
+        """mark_pushed returns the allocated event_seq first time, None second time."""
         from datetime import datetime, timezone
 
         db.upsert_pending("chrg_push_test", 5000, "thb", "Alice", "hi")
@@ -170,11 +170,59 @@ class TestIdempotency:
             paid_at=datetime.now(timezone.utc),
         )
 
-        r1 = db.mark_pushed("chrg_push_test", 1)
-        r2 = db.mark_pushed("chrg_push_test", 2)
+        seq1 = db.mark_pushed("chrg_push_test")
+        seq2 = db.mark_pushed("chrg_push_test")
 
-        assert r1 == 1, "First mark_pushed rowcount should be 1"
-        assert r2 == 0, "Second mark_pushed rowcount should be 0 (already pushed)"
+        assert seq1 is not None and seq1 >= 1, "First mark_pushed returns the event_seq"
+        assert seq2 is None, "Second mark_pushed returns None (already pushed, no double-push)"
+
+    def test_mark_pushed_allocates_distinct_seqs(self, db):
+        """
+        F6 regression: each pushed charge gets a distinct, monotonic event_seq, allocated
+        atomically inside mark_pushed (no separate next_seq() read that could collide).
+        """
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
+        seqs = []
+        for i in range(3):
+            cid = f"chrg_seq_{i}"
+            db.record_successful(
+                charge_id=cid, amount=2000, currency="thb",
+                supporter_name="x", message="y", source_type="promptpay", paid_at=now,
+            )
+            seqs.append(db.mark_pushed(cid))
+
+        assert seqs == sorted(seqs), "event_seq must be monotonic"
+        assert len(set(seqs)) == 3, "every pushed charge gets a distinct event_seq"
+
+    def test_purge_old_covers_pending_pii(self, db):
+        """
+        Privacy regression: abandoned pending charges (paid_at IS NULL) must also have
+        their PII purged by age — a paid_at-only filter would retain them forever.
+        """
+        from datetime import datetime, timedelta, timezone
+
+        old = datetime.now(timezone.utc) - timedelta(days=120)
+        # Old pending row: never paid (paid_at NULL), created 120 days ago.
+        with db._engine.begin() as conn:
+            from sqlalchemy import text
+            conn.execute(
+                text(
+                    "INSERT INTO tips (charge_id, status, amount, currency, "
+                    " supporter_name, message, source_type, created_at) "
+                    "VALUES ('chrg_pending_old', 'pending', 5000, 'thb', "
+                    " 'GhostDonor', 'leaked?', 'promptpay', :created)"
+                ),
+                {"created": old},
+            )
+
+        purged = db.purge_old(before=datetime.now(timezone.utc) - timedelta(days=90))
+
+        assert purged >= 1, "old pending row should be purged"
+        row = db.get_tip("chrg_pending_old")
+        assert row["supporter_name"] is None and row["message"] is None, \
+            "pending-row PII must be nulled after purge"
 
 
 # ── §11 invariant 4: Amount from verified charge only ────────────────────────

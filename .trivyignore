@@ -1,0 +1,20 @@
+# Trivy ignore list — scoped, justified, time-boxed exceptions for `make scan`.
+#
+# RULE: only "fix exists upstream but the vendor image hasn't rebuilt yet" AND
+# "not on our exposure path" belongs here. Anything we can fix ourselves (our deps,
+# our Dockerfile) must be fixed, not ignored. Re-check each entry when the vendor
+# ships a rebuilt image; delete the line once the pinned digest is clean.
+# Last reviewed: 2026-06-04.
+
+# nginx:1.30.2-alpine — libxml2 DoS via crafted XSD-validated document.
+# Fixed in alpine pkg 2.13.9-r1; no current nginx alpine image has rebuilt with it yet
+# (1.30.2 / 1.31.1 / mainline / stable all still ship 2.13.9-r0 as of 2026-06-04).
+# Not on our path: our nginx does static serving + proxy_pass only — no XSLT/XSD module,
+# so libxml2's XSD validator is never invoked. Remove when nginx alpine rebuilds.
+CVE-2026-6732
+
+# cloudflare/cloudflared:2026.5.2 — HIGH in transitive google.golang.org/grpc.
+# Fixed in grpc 1.79.3; cloudflared 2026.5.2 still vendors 1.79.2. Third-party binary we
+# do not build — only Cloudflare can ship the rebuild (watch for >2026.5.2). The connector
+# speaks QUIC/HTTP2 to the edge; this is an internal gRPC dep. Remove when cloudflared bumps.
+CVE-2026-33186

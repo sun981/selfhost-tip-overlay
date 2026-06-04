@@ -89,8 +89,7 @@ async def run(
         age_secs = (startup_time - paid_at.replace(tzinfo=timezone.utc)).total_seconds()
         if age_secs > threshold_secs:
             # Too old: record in DB but mark pushed silently (no overlay burst)
-            seq = db.next_seq()
-            db.mark_pushed(charge.charge_id, seq)
+            db.mark_pushed(charge.charge_id)
             continue
 
         # Process and push (same pipeline as webhook)
@@ -115,24 +114,22 @@ async def run(
             result = dataclasses.replace(tip_event, message="[ซ่อน]")
 
         if result == "DROP":
-            seq = db.next_seq()
-            db.mark_pushed(charge.charge_id, seq)
+            db.mark_pushed(charge.charge_id)
             continue
 
         if result == "HOLD" or not isinstance(result, TipEvent):
             result = tip_event
 
-        seq = db.next_seq()
-        overlay_event = OverlayEvent(
-            charge_id=charge.charge_id,
-            amount=charge.amount,
-            supporter_name=result.supporter_name,
-            message=result.message,
-            event_seq=seq,
-        )
-
-        rowcount = db.mark_pushed(charge.charge_id, seq)
-        if rowcount == 1:
+        # Atomic seq alloc + mark pushed (F6); None → already pushed, skip broadcast
+        seq = db.mark_pushed(charge.charge_id)
+        if seq is not None:
+            overlay_event = OverlayEvent(
+                charge_id=charge.charge_id,
+                amount=charge.amount,
+                supporter_name=result.supporter_name,
+                message=result.message,
+                event_seq=seq,
+            )
             await broadcaster(overlay_event)
             pushed += 1
 

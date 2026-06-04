@@ -115,9 +115,6 @@ async def _push_tip(
         source_type=source_type,
     )
 
-    # Allocate seq (used for both mark_pushed and SSE id)
-    seq = db.next_seq()
-
     # process_tip with timeout — fallback on any failure (P0#3)
     # On crash: blank message so adversarial input that tripped the filter doesn't leak raw
     try:
@@ -132,24 +129,23 @@ async def _push_tip(
 
     if result == "DROP":
         # Money recorded; mark pushed silently — don't show on overlay
-        db.mark_pushed(charge_id, seq)
+        db.mark_pushed(charge_id)
         return
 
     # HOLD = seam (no-op in PoC) → treat as pass-through
     if result == "HOLD" or not isinstance(result, TipEvent):
         result = tip_event
 
-    # On any stage error above, fallback already set message — just build overlay event
-    overlay_event = OverlayEvent(
-        charge_id=charge_id,
-        amount=amount,
-        supporter_name=result.supporter_name,
-        message=result.message,
-        event_seq=seq,
-    )
-
-    # Atomic: emit SSE only if mark_pushed succeeds (rowcount==1 → not already pushed)
-    rowcount = db.mark_pushed(charge_id, seq)
-    if rowcount == 1:
+    # Atomic: allocate event_seq + mark pushed in one step (F6). None → already pushed
+    # (concurrent delivery) → do NOT broadcast (prevents double-push).
+    seq = db.mark_pushed(charge_id)
+    if seq is not None:
+        overlay_event = OverlayEvent(
+            charge_id=charge_id,
+            amount=amount,
+            supporter_name=result.supporter_name,
+            message=result.message,
+            event_seq=seq,
+        )
         await broadcaster(overlay_event)
         logger.info("Pushed: %s", safe_event("overlay_pushed", charge_id, amount=amount))

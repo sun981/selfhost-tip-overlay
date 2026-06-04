@@ -41,16 +41,31 @@ def cf_key(request: Request) -> str:
 class RateLimiter:
     """Fixed sliding window per key. Drive via a plain function dependency below."""
 
-    def __init__(self, max_requests: int, window_secs: int) -> None:
+    def __init__(self, max_requests: int, window_secs: int, max_keys: int = 10_000) -> None:
         self._max = max_requests
         self._window = window_secs
+        self._max_keys = max_keys
         self._hits: dict[str, deque[float]] = defaultdict(deque)
+
+    def _evict_stale(self, cutoff: float) -> None:
+        """
+        Drop keys whose most-recent hit is already outside the window (their deque would
+        prune to empty). Bounds memory: check() prunes only the key it touches, so an IP
+        that hits once and never returns would otherwise linger forever. Under IP churn
+        (rotated/spoofed source addresses) that is unbounded growth → OOM (F-ratelimit).
+        Triggered only past max_keys so the common path stays O(1).
+        """
+        stale = [k for k, d in self._hits.items() if not d or d[-1] <= cutoff]
+        for k in stale:
+            del self._hits[k]
 
     def check(self, key: str) -> None:
         """Record a hit for `key`; raise HTTP 429 if it exceeds the window budget."""
         now = time.monotonic()
-        dq = self._hits[key]
         cutoff = now - self._window
+        if len(self._hits) > self._max_keys:
+            self._evict_stale(cutoff)
+        dq = self._hits[key]
         while dq and dq[0] <= cutoff:
             dq.popleft()
         if len(dq) >= self._max:
