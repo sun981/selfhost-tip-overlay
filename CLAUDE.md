@@ -55,7 +55,7 @@ Self-host **streamer tip overlay** that replaces TipMe (shut down). Donor pays v
 6. **All money stored in satang** (1 THB = 100); divide by 100 only at display. Omise THB **minimum charge is ฿20** (hard limit — cannot go lower).
 
 7. **Secure Core vs Safe Edge** (§13) governs where code lives and what may be AI-edited:
-   - `core/` = signature verify, secret load, charge create (skey), idempotency, replay, CORS, startup self-test, payment adapter. **Human-review-only**, hook-protected (§13.5). A `PreToolUse` hook (built last) forces user confirmation before editing `core/`.
+   - `core/` = signature verify, secret load, charge create (skey), idempotency, replay, CORS, startup self-test, payment adapter. **Human-review-only** (§13.5). The `PreToolUse` `core/`-protection hook is **deliberately NOT installed yet** (owner wants `core/` editable for now) — treat `core/` edits as human-review-required by convention.
    - `app/` = overlay/tip look, `process_tip` stages, `settings.json`. **Vibecode-safe.**
    - `contracts/` = stable interfaces (`TipEvent`, `OverlayEvent`). Dependency is one-way: `app/` → `contracts/` ← `core/`; **core never imports app**.
    - Security comes from **structure + server-set CSP + fail-closed startup self-test**, not from author discipline.
@@ -68,14 +68,14 @@ The single source of truth for scope is the **`[!success] LOCKED` block at the t
 - **Roadmap (do NOT build now):** card (Omise.js + SRI returns), TTS (provider chosen = Google), **donor-pays-fee toggle**, goal bar / top-tipper, config UI, moderation hold-queue, remote OBS (the seam is already designed).
 - **Defaults (use unless told otherwise):** message cap 200 chars · privacy purge 90 days · on reconciliation, do not push to the overlay if `paid_at` is older than ~10 min before startup (still record it).
 
-> **Build handoff:** the PoC will be built by a *fresh* session (Sonnet + advisor) with **none of this chat history**. These three docs (SPEC, ARCHITECTURE, CLAUDE) must be self-sufficient. Build order = SPEC §10. `core/`-protection hook (§13.5) is the **last** step.
+> **Status:** the PoC is **built and running** (`docker compose`; §11 money path verified in Omise test mode — pay → webhook → recorded → pushed → overlay). The `core/`-protection hook (§13.5) is the one remaining build step, intentionally deferred (owner wants `core/` editable). These docs (SPEC, ARCHITECTURE, CLAUDE) are self-sufficient for a fresh session.
 
-## Planned commands (target — not implemented yet)
+## Commands
 
-When the code exists, these are the intended entry points (per ARCHITECTURE §13.3 / SPEC §7):
-- `docker compose up` — run the full stack (backend, frontend, overlay, db, cloudflared)
+Entry points (per `docs/design/ARCHITECTURE.md` §13.3 / `docs/design/SPEC.md` §7):
+- `docker compose up -d` — run the full stack (backend, frontend, overlay, db, cloudflared)
 - `make verify` (a.k.a. `docker compose run tests`) — runs the SPEC §11 security invariants as a test suite; **green is the ship gate**. Runs `pip-audit` as a **hard gate** (self-bootstrapped `.audit-venv`, fails on any CVE) so green means "no known CVE in current pins"; image scan (`trivy`) is still planned. A broken security invariant must fail the build.
-- Single test: there is no harness yet; when built (FastAPI/pytest), expect `pytest tests/<file>::<test>`.
+- Single test: `pytest tests/<file>::<test>` — runs inside the backend image (see `Makefile` `PYTEST_RUN`; `tests/` is mounted at runtime).
 
 Backend = Python + FastAPI + uvicorn + httpx; SQLite via SQLAlchemy (`DATABASE_URL`, portable to Postgres); frontend/overlay = vanilla static (no build step); OBS link via `obs-websocket` v5 on `host.docker.internal:4455` (never exposed).
 
