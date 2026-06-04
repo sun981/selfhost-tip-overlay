@@ -52,7 +52,10 @@ services:
           cpus: "0.25"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:80/health"]
+      # IPv4-explicit: `localhost` resolves to ::1 first in alpine 3.x, but nginx is
+      # `listen 80;` (IPv4 only) → a localhost healthcheck false-fails. Real traffic
+      # (cloudflared → frontend:80 via docker DNS) is IPv4 and unaffected.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:80/health"]
       interval: 30s
       timeout: 5s
       retries: 3
