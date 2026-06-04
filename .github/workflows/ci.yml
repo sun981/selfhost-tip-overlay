@@ -16,7 +16,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       # compose has `env_file: .env`; tests force their own hermetic env, so a
       # placeholder .env is enough to satisfy the file requirement.
