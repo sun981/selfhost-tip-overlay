@@ -106,6 +106,51 @@ class TestWebhookEndpoint:
         )
         assert resp.status_code == 401
 
+    def test_successful_charge_recorded_and_pushed(self, client: TestClient):
+        """
+        SPEC §11 core: a valid-sig successful charge.complete must return 200,
+        record the money (status=successful), and push to the overlay exactly once.
+        Covers the record→push ordering end-to-end.
+
+        Read back over HTTP, not app.state.db directly: with sqlite :memory: each
+        thread gets its own DB, so the test thread can't see the app-thread writes
+        (prod uses a file DB, so this is a test-only quirk).
+        """
+        charge_id = "chrg_e2e_success_1"
+        raw_body = json.dumps({
+            "key": "charge.complete",
+            "data": {
+                "object": "charge",
+                "id": charge_id,
+                "status": "successful",
+                "amount": 5000,
+                "currency": "thb",
+                "metadata": {"supporter_name": "Carol", "message": "gg"},
+                "paid_at": "2026-06-04T00:00:00Z",
+            },
+        }).encode()
+        ts_str, sig = make_valid_signature(raw_body)
+
+        resp = client.post(
+            "/webhooks/omise",
+            content=raw_body,
+            headers={"content-type": "application/json", **make_headers(ts_str, sig)},
+        )
+        assert resp.status_code == 200
+
+        # Recorded as successful money record
+        st = client.get(f"/api/charge/{charge_id}/status")
+        assert st.status_code == 200
+        assert st.json() == {"status": "successful", "amount": 5000}
+
+        # Pushed exactly once (token-gated backfill endpoint reads pushed rows)
+        recent = client.get("/api/tips/recent", params={"after": 0, "token": "test-overlay-token"})
+        assert recent.status_code == 200
+        tips = [t for t in recent.json()["tips"] if t["charge_id"] == charge_id]
+        assert len(tips) == 1, "successful charge must be pushed exactly once"
+        assert tips[0]["supporter_name"] == "Carol"
+        assert tips[0]["message"] == "gg"  # ≥฿20 tier, no banned word → shown
+
 
 # ── P0#3: crashing stage → blinded message (not raw) ─────────────────────────
 
