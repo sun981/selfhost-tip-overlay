@@ -25,8 +25,9 @@ Notes / gotchas baked into the Makefile:
 - `tests/` is `.dockerignore`d and the backend runs `read_only`, so the gate **mounts**
   `tests/` at runtime and disables the pytest cache. Don't "simplify" it back to a bare
   `pytest tests/` — that fails to collect (this bug hid a real overlay break once).
-- Host needs `python3` + Docker. `pip-audit` is optional (gate prints "command not found"
-  and continues); install it for the CVE check: `pipx install pip-audit`.
+- Host needs `python3` + Docker. The CVE check is a **HARD gate**: it self-bootstraps
+  `pip-audit` into a cached `.audit-venv` and **fails the build** on any finding (no longer
+  the old `|| true` no-op). No manual install needed; it does need network on first run.
 - Tests are hermetic (force their own env), so they pass regardless of your `.env`.
 
 What the gate covers (maps to SPEC §11):

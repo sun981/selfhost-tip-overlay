@@ -55,7 +55,7 @@ The single source of truth for scope is the **`[!success] LOCKED` block at the t
 
 When the code exists, these are the intended entry points (per ARCHITECTURE §13.3 / SPEC §7):
 - `docker compose up` — run the full stack (backend, frontend, overlay, db, cloudflared)
-- `make verify` (a.k.a. `docker compose run tests`) — runs the SPEC §11 security invariants as a test suite; **green is the ship gate**. Planned to also run `pip-audit` + image scan (`trivy`) so green means "no known CVE in current pins". A broken security invariant must fail the build.
+- `make verify` (a.k.a. `docker compose run tests`) — runs the SPEC §11 security invariants as a test suite; **green is the ship gate**. Runs `pip-audit` as a **hard gate** (self-bootstrapped `.audit-venv`, fails on any CVE) so green means "no known CVE in current pins"; image scan (`trivy`) is still planned. A broken security invariant must fail the build.
 - Single test: there is no harness yet; when built (FastAPI/pytest), expect `pytest tests/<file>::<test>`.
 
 Backend = Python + FastAPI + uvicorn + httpx; SQLite via SQLAlchemy (`DATABASE_URL`, portable to Postgres); frontend/overlay = vanilla static (no build step); OBS link via `obs-websocket` v5 on `host.docker.internal:4455` (never exposed).
