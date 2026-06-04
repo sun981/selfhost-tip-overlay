@@ -6,11 +6,12 @@ Amount from server, never trusted from client at overlay (SPEC §4.4).
 from __future__ import annotations
 
 import logging
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, field_validator
 
 from app import obs_client
 from core.payment.omise import OmiseAdapter
+from core.ratelimit import charge_rate_limit
 from core.security.log import safe_event
 
 logger = logging.getLogger(__name__)
@@ -57,7 +58,11 @@ class ChargeRequest(BaseModel):
 
 
 @router.post("/api/charge")
-async def create_charge(body: ChargeRequest, request: Request):
+async def create_charge(
+    body: ChargeRequest,
+    request: Request,
+    _rl: None = Depends(charge_rate_limit),  # SPEC §4.9 — 30/min/IP, raises 429
+):
     # Live gate — SPEC §5, D7 (checked at POST /api/charge, not at webhook)
     live = await obs_client.get_live_status()
     if not live:

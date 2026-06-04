@@ -162,3 +162,28 @@ class TestChargeValidation:
             json={"amount": 1999, "currency": "thb"},
         )
         assert resp.status_code in (422, 403)  # 422 validation error or 403 not live
+
+
+# ── SPEC §4.9: rate limiting is actually enforced at POST /api/charge ─────────
+
+class TestRateLimit:
+
+    def test_charge_is_rate_limited(self, client: TestClient):
+        """
+        SPEC §4.9: /api/charge must throttle. With the live gate failing closed,
+        requests under the limit return 403; once the 30/min cap is hit → 429.
+        Uses a unique CF-Connecting-IP so this test owns its own limiter bucket.
+        """
+        headers = {"cf-connecting-ip": "203.0.113.7"}  # isolated key
+        valid = {"amount": 2000, "currency": "thb"}
+
+        # OBS isn't reachable in tests → get_live_status fails closed (403).
+        # The limiter runs *before* the endpoint body, so it still counts these.
+        with patch("app.obs_client.get_live_status", new=AsyncMock(return_value=False)):
+            statuses = [
+                client.post("/api/charge", json=valid, headers=headers).status_code
+                for _ in range(35)
+            ]
+
+        assert statuses[0] == 403, f"under-limit request should hit live gate, got {statuses[0]}"
+        assert 429 in statuses, f"expected a 429 after 30/min, got {sorted(set(statuses))}"

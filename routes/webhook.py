@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+# NOTE: webhook is intentionally NOT rate-limited via slowapi. It is already gated by
+# signature verification (cheap 401s), and any slowapi wrapper here risks the raw-body
+# read (SPEC §4.1). Rate limiting is applied at POST /api/charge — the real exposure.
 @router.post("/webhooks/omise", status_code=200)
 async def receive_webhook(request: Request) -> Response:
     adapter: OmiseAdapter = request.app.state.omise

@@ -9,14 +9,11 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 # ── Secret validation + self-test (before anything else) ────────────────────
 from core.security import secrets, startup_test
@@ -49,19 +46,8 @@ def _load_settings() -> dict:
 SETTINGS = _load_settings()
 
 
-# ── Rate limiter (SPEC §4.9, ARCHITECTURE §9) ────────────────────────────────
-# Key = CF-Connecting-IP (from Cloudflare Tunnel, ARCHITECTURE §9 P0#1)
-# If header absent = request not from tunnel → reject
-
-def _cf_key(request: Request) -> str:
-    ip = request.headers.get("cf-connecting-ip")
-    if not ip:
-        ip = request.headers.get("x-forwarded-for", "")
-        ip = ip.split(",")[0].strip()
-    return ip or "unknown"
-
-
-limiter = Limiter(key_func=_cf_key, default_limits=["60/minute"])
+# Rate limiter lives in core/ratelimit.py (shared with routes for @limiter.limit).
+# Enforced per-route via decorators — NOT global middleware (SPEC §4.9, see core/ratelimit).
 
 
 # ── App lifecycle ────────────────────────────────────────────────────────────
@@ -106,7 +92,26 @@ async def lifespan(app: FastAPI):
         )
     )
 
+    # Privacy purge (CLAUDE.md default 90d) — strip name/message from old rows.
+    # Implemented in DBOps.purge_old; scheduled here so the retention promise is real.
+    purge_days = int(SETTINGS.get("privacy_purge_days", 90))
+
+    async def _purge_loop() -> None:
+        while True:
+            try:
+                before = datetime.now(timezone.utc) - timedelta(days=purge_days)
+                n = db.purge_old(before)
+                if n:
+                    logger.info("Privacy purge: cleared PII from %d old record(s)", n)
+            except Exception as e:
+                logger.error("Privacy purge failed: %s", str(e))
+            await asyncio.sleep(86400)  # daily
+
+    purge_task = asyncio.create_task(_purge_loop())
+
     yield  # serve
+
+    purge_task.cancel()
 
     # Cleanup
     engine.dispose()
@@ -131,9 +136,9 @@ app.add_middleware(
     allow_credentials=False,
 )
 
-# Rate limiting
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+# Rate limiting (SPEC §4.9) is applied as a FastAPI dependency on POST /api/charge
+# (see routes/charge.py + core/ratelimit.py). No global middleware — it would consume
+# the webhook raw body and break signature verification (SPEC §4.1).
 
 # Routes
 app.include_router(webhook_route.router)
