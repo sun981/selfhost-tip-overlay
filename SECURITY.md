@@ -21,7 +21,7 @@ donor → Omise → the streamer's own Omise account. The system never holds, tr
 stores funds, and stores no card data. Each deployment is one operator's own box behind a
 Cloudflare Tunnel (outbound only, no inbound port).
 
-The highest-value invariants (see `SPEC.md` §4, `ARCHITECTURE.md` §9) are:
+The highest-value invariants (see `docs/design/SPEC.md` §4, `docs/design/ARCHITECTURE.md` §9) are:
 - Omise webhook signature verification (`core/payment/omise.py`)
 - "record money before pushing overlay" two-key idempotency (`core/db/operations.py`)
 - amount taken only from the verified charge, never the client

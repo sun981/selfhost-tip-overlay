@@ -331,4 +331,4 @@ make verify                   # รัน security tests
 - **ค่า gateway**: Omise เก็บ PromptPay **1.65% + VAT 7% (≈1.77%)** จากยอดที่ streamer ได้รับ — ระบบนี้ไม่หักเพิ่ม
 - **คืนเงินไม่ได้**: PromptPay charge คืนเงินผ่าน Omise ไม่ได้ ควรแจ้ง supporter ก่อนจ่าย
 - **ความรับผิดชอบ**: KYC, ภาษี, และการปฏิบัติตามเงื่อนไข Omise เป็นของ streamer เอง ดู [Omise Terms](https://www.omise.co/th/terms)
-- **Security**: หากพบช่องโหว่ ดู SECURITY.md
+- **Security**: หากพบช่องโหว่ ดู `../../SECURITY.md` (repo root)
