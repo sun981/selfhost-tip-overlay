@@ -1,4 +1,4 @@
-.PHONY: verify lint-imports build up down logs test scan
+.PHONY: setup verify lint-imports build up down logs test scan
 
 # Container-image CVE scan (OS layer — the gap pip-audit can't see: nginx/cloudflared/
 # python base). Runs trivy via its official image so there's no host prereq (mirrors the
@@ -42,6 +42,11 @@ scan:
 
 lint-imports:
 	python3 tools/check_imports.py
+
+# First-time setup wizard — guided .env + secure token + OBS URL (macOS/Linux).
+# On macOS you can also just double-click setup.command instead.
+setup:
+	bash scripts/setup.sh
 
 build:
 	docker compose build

@@ -113,6 +113,14 @@ cd "tip-overlay"
 **วิธีที่ 2 — ไม่มี Git:**
 ไปที่ GitHub → **Code** → **Download ZIP** → แตกไฟล์ → จดตำแหน่งโฟลเดอร์ไว้
 
+> **ทางลัด (Mac/Linux) — แนะนำ:** แทนขั้นตอน **4.2–4.4** ด้านล่างทั้งหมด ด้วยการ
+> **ดับเบิลคลิก `setup.command`** (Mac) หรือรัน `make setup` (Mac/Linux). ตัวช่วยจะ
+> ถามค่าทีละตัว สร้าง `OVERLAY_TOKEN` ให้อัตโนมัติ เขียน `.env` (`chmod 600`) และ
+> print URL ของ OBS browser source ให้เลย → แล้วข้ามไป **ขั้นตอนที่ 5** ได้
+> (ยังต้องตั้ง OBS browser source ตาม URL ที่ wizard ให้). **Windows** ทำตาม 4.2–4.4 ด้านล่าง
+> ถ้าดับเบิลคลิก `setup.command` แล้วถูกบล็อก (ดาวน์โหลดมาจากเน็ต) → คลิกขวา → **Open**
+> หรือเปิด Terminal แล้วรัน `bash scripts/setup.sh`
+
 ### 4.2 สร้างไฟล์ .env
 
 **Mac/Linux:**

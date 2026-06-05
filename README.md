@@ -16,19 +16,47 @@ never holds, transfers, or stores funds, and stores no card data.
 PoC is **built and runs**. Security gate (`make verify`) is green: 32 tests + a hard
 `pip-audit` CVE check + the `core/`-doesn't-import-`app/` guard.
 
-## Quick start
+## Get started
 
-Full step-by-step (Omise → Cloudflare → OBS → `.env` → run) is in
-**[docs/guides/SETUP.md](docs/guides/SETUP.md)**. The short version:
+**macOS — one click:** double-click **`setup.command`**. It asks for your Omise keys,
+OBS WebSocket password, and domain; generates a secure overlay token; writes `.env`
+(`chmod 600`); prints the exact OBS browser-source URL; and offers to start the stack.
+(If a downloaded `.command` is blocked, right-click → **Open**, or run `bash scripts/setup.sh`.)
+
+Prefer the terminal (macOS / Linux)?
 
 ```bash
-cp .env.example .env     # fill in Omise keys, Cloudflare tunnel token, OBS WS password, OVERLAY_TOKEN
-docker compose up -d     # backend + frontend + overlay + cloudflared
-make verify              # security gate — should be green
+make setup            # same guided wizard: .env + token + OBS URL
+docker compose up -d  # backend + frontend + overlay + cloudflared
+make verify           # security gate — should be green
 ```
+
+**Windows, or want to do it by hand:** follow the step-by-step
+**[docs/guides/SETUP.md](docs/guides/SETUP.md)** (Omise → Cloudflare → OBS → `.env` → run).
+The double-click wizard is macOS/Linux only for now.
 
 OBS browser source (local, token from `.env`):
 `http://127.0.0.1:8080/?token=<OVERLAY_TOKEN>`
+
+## Project layout — what you touch vs what you don't
+
+You only ever edit a handful of things. Everything else is machinery the wizard and
+`docker compose` drive for you — the long file list looks busy but most of it you ignore.
+
+| You edit | What it controls |
+|---|---|
+| `setup.command` / `make setup` | first-time setup (writes `.env`) |
+| `.env` | your secrets — created by the wizard, **never commit it** |
+| `app/settings.json` | banned words, amount tiers, alert sound, retention |
+| `app/overlay/style.css` · `app/tip/style.css` | colours / fonts |
+| `app/overlay/sounds/` | alert audio |
+
+| Don't touch (machinery / security) | Why |
+|---|---|
+| `core/` | money + signature-verify path — human-review-only, locked |
+| `routes/` · `contracts/` · `main.py` | API wiring |
+| `Dockerfile.backend` · `docker-compose.yml` · `nginx/` · `requirements.txt` | build & serving |
+| `tests/` · `tools/` · `Makefile` | the `make verify` security gate |
 
 ## Documentation
 
