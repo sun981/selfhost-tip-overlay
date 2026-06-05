@@ -1,16 +1,16 @@
 # Pin exact versions for reproducibility (SPEC §4.9).
 # CVE gate: `make verify` runs `pip-audit -r requirements.txt` as a HARD check
-# (no longer `|| true`). Last audited 2026-06-04 → no known vulnerabilities.
+# (no longer `|| true`). Last audited 2026-06-05 → no known vulnerabilities.
 fastapi==0.136.3
 # starlette is fastapi's transitive dep; pinned explicitly to lock the CVE-free
 # floor (>=1.0.1 clears CVE-2025-54121, CVE-2025-62727, PYSEC-2026-161).
 starlette==1.2.1
 uvicorn[standard]==0.32.1
-httpx==0.28.0
-sqlalchemy==2.0.36
-python-multipart==0.0.27
+httpx==0.28.1
+sqlalchemy==2.0.50
+python-multipart==0.0.32
 websockets==13.1
-structlog==24.4.0
+structlog==25.5.0
 pydantic==2.13.4
 pydantic-settings==2.14.1
 sse-starlette==3.4.4
