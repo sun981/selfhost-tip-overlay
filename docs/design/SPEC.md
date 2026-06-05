@@ -14,7 +14,7 @@
 - **เครื่องเดียว**: streamer มีคอม stream เครื่องเดียวที่แรงพอรัน Docker ได้ ทุก service รันบนเครื่องนี้
 - **Self-host**: ออกเน็ตผ่าน Cloudflare Tunnel (cloudflared) เท่านั้น ไม่เปิด inbound port
 - **Gate ด้วย live status**: หน้า tip เปิดให้จ่ายเฉพาะตอน streamer กำลัง live (เช็คผ่าน OBS WebSocket)
-- **Bring-your-own-Omise**: streamer ใช้บัญชี Omise ของตัวเอง ระบบไม่ถือเงิน เงินวิ่ง donor → Omise → บัญชี streamer โดยตรง
+- **Bring-your-own-gateway**: streamer ใช้บัญชี payment ของตัวเอง — **Omise หรือ Stripe** (เลือกด้วย `PAYMENT_GATEWAY`, 🔧[rev 2026-06-05]) ระบบไม่ถือเงิน เงินวิ่ง donor → gateway → บัญชี streamer โดยตรง
 - **PromptPay เป็นหลัก** (async, ได้ webhook ปกติ) รองรับ card ด้วยได้
 
 ## 2. สถาปัตยกรรม (docker-compose, ทุกอย่างบนเครื่องเดียว)
