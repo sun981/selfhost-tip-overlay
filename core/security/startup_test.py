@@ -25,9 +25,18 @@ def run() -> None:
     """Run all startup self-tests. sys.exit on any failure."""
     failures: list[str] = []
 
-    _test_sig_verify_bad_sig(failures)
-    _test_sig_verify_replay(failures)
-    _test_sig_verify_missing_headers(failures)
+    # Fire bad-signature / replay / missing-header vectors against the SELECTED gateway
+    # adapter (ARCHITECTURE §9.5 — prove the active verify_webhook rejects forgery).
+    gateway = os.environ.get("PAYMENT_GATEWAY", "omise").strip().lower()
+    if gateway == "stripe":
+        _test_stripe_bad_sig(failures)
+        _test_stripe_replay(failures)
+        _test_stripe_missing_headers(failures)
+    else:
+        _test_sig_verify_bad_sig(failures)
+        _test_sig_verify_replay(failures)
+        _test_sig_verify_missing_headers(failures)
+
     _test_cors_not_wildcard(failures)
     _test_debug_off(failures)
 
@@ -115,6 +124,69 @@ def _test_sig_verify_missing_headers(failures: list[str]) -> None:
         pass  # Expected
     except Exception as e:
         failures.append(f"Missing headers raised wrong exception: {type(e).__name__}: {e}")
+
+
+def _stripe_sign(secret: str, ts: str, raw_body: bytes) -> str:
+    signed = ts.encode() + b"." + raw_body
+    return hmac.new(secret.encode("utf-8"), signed, hashlib.sha256).hexdigest()
+
+
+def _test_stripe_bad_sig(failures: list[str]) -> None:
+    """Bad Stripe signature must raise SignatureError (self-consistency check)."""
+    from core.payment.base import SignatureError
+    from core.payment.stripe import StripeAdapter
+
+    adapter = StripeAdapter(secret_key="sk_test_dummy", webhook_secret="whsec_dummy")
+    ts = str(int(time.time()))
+    raw_body = b'{"type":"payment_intent.succeeded","data":{"object":{"id":"pi_x"}}}'
+    headers = {"stripe-signature": f"t={ts},v1={'0' * 64}"}
+
+    try:
+        adapter.verify_webhook(raw_body, headers)
+        failures.append("Stripe bad signature should have raised SignatureError but did not")
+    except SignatureError:
+        pass
+    except Exception as e:
+        failures.append(f"Stripe bad sig raised wrong exception: {type(e).__name__}: {e}")
+
+
+def _test_stripe_replay(failures: list[str]) -> None:
+    """Old Stripe timestamp must raise ReplayError (self-consistency check)."""
+    from core.payment.base import ReplayError, SignatureError
+    from core.payment.stripe import StripeAdapter
+
+    adapter = StripeAdapter(secret_key="sk_test_dummy", webhook_secret="whsec_dummy")
+    old_ts = str(int(time.time()) - 400)  # outside ±300s window
+    raw_body = b'{"type":"payment_intent.succeeded","data":{"object":{}}}'
+    good_sig = _stripe_sign("whsec_dummy", old_ts, raw_body)
+    headers = {"stripe-signature": f"t={old_ts},v1={good_sig}"}
+
+    try:
+        adapter.verify_webhook(raw_body, headers)
+        failures.append("Stripe old timestamp should have raised ReplayError but did not")
+    except ReplayError:
+        pass
+    except SignatureError:
+        failures.append("Stripe old timestamp raised SignatureError instead of ReplayError")
+    except Exception as e:
+        failures.append(f"Stripe old timestamp raised wrong exception: {type(e).__name__}: {e}")
+
+
+def _test_stripe_missing_headers(failures: list[str]) -> None:
+    """Missing Stripe-Signature must raise SignatureError (not crash to 500)."""
+    from core.payment.base import SignatureError
+    from core.payment.stripe import StripeAdapter
+
+    adapter = StripeAdapter(secret_key="sk_test_dummy", webhook_secret="whsec_dummy")
+    raw_body = b'{"type":"payment_intent.succeeded"}'
+
+    try:
+        adapter.verify_webhook(raw_body, {})  # empty headers
+        failures.append("Stripe missing headers should have raised SignatureError but did not")
+    except SignatureError:
+        pass
+    except Exception as e:
+        failures.append(f"Stripe missing headers raised wrong exception: {type(e).__name__}: {e}")
 
 
 def _test_cors_not_wildcard(failures: list[str]) -> None:

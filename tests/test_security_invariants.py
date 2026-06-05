@@ -323,8 +323,6 @@ class TestSecretValidation:
 
     def test_cors_not_wildcard(self):
         """SPEC §4.7: CORS_ORIGIN must not be *."""
-        from core.security.secrets import _REQUIRED
-
         # Verify the check exists in validate() by checking the source
         import inspect
         from core.security import secrets as secrets_mod

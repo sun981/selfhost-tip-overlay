@@ -24,7 +24,11 @@ router = APIRouter()
 # NOTE: webhook is intentionally NOT rate-limited via slowapi. It is already gated by
 # signature verification (cheap 401s), and any slowapi wrapper here risks the raw-body
 # read (SPEC §4.1). Rate limiting is applied at POST /api/charge — the real exposure.
+# Both paths hit the same gateway-neutral handler; the active gateway (app.state.gateway)
+# decides which verifies. One provider is configured per deploy, so the unused path simply
+# 401s anything sent to it. Omise dashboard → /webhooks/omise, Stripe dashboard → /webhooks/stripe.
 @router.post("/webhooks/omise", status_code=200)
+@router.post("/webhooks/stripe", status_code=200)
 async def receive_webhook(request: Request) -> Response:
     gateway: PaymentGateway = request.app.state.gateway
     db = request.app.state.db

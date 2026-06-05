@@ -14,15 +14,17 @@ _PLACEHOLDERS = {
     "CHANGEME", "changeme", "xxx", "XXX", "your_secret_here",
     "...", "replace_me", "REPLACE_ME", "TODO", "todo",
     "skey_test_CHANGEME", "skey_live_CHANGEME",
+    "sk_test_CHANGEME", "sk_live_CHANGEME", "whsec_CHANGEME",
 }
 
-_REQUIRED = [
-    "OMISE_SECRET_KEY",
-    "OMISE_WEBHOOK_SECRET",
-    "CORS_ORIGIN",
-    "OVERLAY_TOKEN",
-    "OBS_WS_PASSWORD",
-]
+# Required env vars = a common set + the secrets for the selected PAYMENT_GATEWAY.
+# Only the active gateway's secrets are required (you don't need Stripe keys to run
+# Omise, and vice versa).
+_COMMON_REQUIRED = ["CORS_ORIGIN", "OVERLAY_TOKEN", "OBS_WS_PASSWORD"]
+_GATEWAY_REQUIRED = {
+    "omise": ["OMISE_SECRET_KEY", "OMISE_WEBHOOK_SECRET"],
+    "stripe": ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"],
+}
 
 
 class SecretError(Exception):
@@ -35,10 +37,20 @@ def validate() -> None:
     Calls sys.exit with a descriptive message on failure (secure by default).
     Never logs the secret values themselves.
     """
+    gateway = os.environ.get("PAYMENT_GATEWAY", "omise").strip().lower()
+    if gateway not in _GATEWAY_REQUIRED:
+        print(
+            f"[STARTUP ERROR] PAYMENT_GATEWAY must be one of "
+            f"{sorted(_GATEWAY_REQUIRED)}, got {gateway!r}.",
+            flush=True,
+        )
+        sys.exit(1)
+    required = _COMMON_REQUIRED + _GATEWAY_REQUIRED[gateway]
+
     missing = []
     placeholder = []
 
-    for key in _REQUIRED:
+    for key in required:
         val = os.environ.get(key, "").strip()
         if not val:
             missing.append(key)
