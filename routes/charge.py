@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, field_validator
 
 from app import obs_client
-from core.payment.omise import OmiseAdapter
+from core.payment.base import PaymentGateway
 from core.ratelimit import charge_rate_limit
 from core.security.log import safe_event
 
@@ -68,17 +68,17 @@ async def create_charge(
     if not live:
         raise HTTPException(status_code=403, detail="Streamer is not live")
 
-    adapter: OmiseAdapter = request.app.state.omise
+    gateway: PaymentGateway = request.app.state.gateway
     db = request.app.state.db
 
     try:
-        result = adapter.create_charge(
+        result = gateway.create_charge(
             amount_satang=body.amount,
             supporter_name=body.supporter_name,
             message=body.message,
         )
     except Exception as e:
-        logger.error("Omise charge creation failed: %s", str(e))
+        logger.error("Charge creation failed: %s", str(e))
         raise HTTPException(status_code=502, detail="Payment service unavailable")
 
     # Cache QR URI keyed by charge_id (served by /qr endpoint, D10)
@@ -127,7 +127,7 @@ async def get_qr(charge_id: str, request: Request):
     from fastapi.responses import Response
 
     db = request.app.state.db
-    adapter: OmiseAdapter = request.app.state.omise
+    gateway: PaymentGateway = request.app.state.gateway
 
     row = db.get_charge_status(charge_id)
     if row is None:
@@ -140,7 +140,7 @@ async def get_qr(charge_id: str, request: Request):
         raise HTTPException(status_code=404, detail="QR not available")
 
     try:
-        content, content_type = adapter.proxy_qr(qr_uri)
+        content, content_type = gateway.proxy_qr(qr_uri)
     except Exception:
         raise HTTPException(status_code=502, detail="QR image unavailable")
 

@@ -73,8 +73,9 @@ async def lifespan(app: FastAPI):
     old_threshold = SETTINGS.get("recon_old_threshold_minutes", 10)
     reconciliation.set_old_threshold(old_threshold)
 
-    # Wire state
-    app.state.omise = omise
+    # Wire state — `gateway` is the active PaymentGateway adapter (Omise here;
+    # a PAYMENT_GATEWAY selector picks the adapter in a later step).
+    app.state.gateway = omise
     app.state.db = db
     app.state.broadcaster = sse_broadcaster.broadcast
     app.state.process_tip = process_tip
