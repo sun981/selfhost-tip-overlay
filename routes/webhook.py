@@ -72,6 +72,11 @@ async def receive_webhook(request: Request) -> Response:
     elif event.kind in ("failed", "expired"):
         db.update_status(event.charge_id, event.kind)
 
+    # QR is useless once the charge reaches a terminal state — evict so the
+    # in-memory cache doesn't grow one entry per charge until restart.
+    if event.kind in ("successful", "failed", "expired"):
+        request.app.state.qr_cache.pop(event.charge_id, None)
+
     # Always 200 for verified events (ignored kinds too) — prevents gateway retry on dup
     return Response(status_code=200)
 
