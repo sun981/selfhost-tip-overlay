@@ -19,9 +19,16 @@ from sqlalchemy import (
     Text,
     create_engine,
     event,
+    inspect,
     text,
 )
 from sqlalchemy.engine import Engine
+
+from core.db.migrations import (
+    _migrations_metadata,
+    run_migrations,
+    stamp_initial_version,
+)
 
 metadata = MetaData()
 
@@ -73,6 +80,19 @@ def create_engine_for_url(database_url: str) -> Engine:
     return engine
 
 
-def init_db(engine: Engine) -> None:
-    """Create tables if they don't exist. Idempotent."""
+def init_db(engine: Engine, database_url: str = "") -> None:
+    """Create tables if they don't exist, then run schema migrations. Idempotent.
+
+    Pre-create_all inspection distinguishes a fresh DB from a pre-mechanism
+    (v0.1.0) DB so stamp_initial_version picks the right starting version.
+    Raises on migration failure — caller must treat as fatal (fail-closed).
+    """
+    inspector = inspect(engine)
+    had_tips = inspector.has_table("tips")
+    had_version_table = inspector.has_table("schema_version")
+
     metadata.create_all(engine)
+    _migrations_metadata.create_all(engine)
+
+    stamp_initial_version(engine, had_tips, had_version_table)
+    run_migrations(engine, database_url)

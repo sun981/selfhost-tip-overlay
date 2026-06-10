@@ -57,7 +57,7 @@ async def lifespan(app: FastAPI):
     # Init DB
     db_url = os.environ.get("DATABASE_URL", "sqlite:////data/tips.db")
     engine = create_engine_for_url(db_url)
-    init_db(engine)
+    init_db(engine, db_url)
     db = DBOps(engine)
 
     # Init payment gateway adapter (Secure Core) — selected by PAYMENT_GATEWAY.
