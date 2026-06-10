@@ -13,7 +13,7 @@ gateway account. The system never holds, transfers, or stores funds, and stores 
 
 ## Status
 
-PoC is **built and runs**. Security gate (`make verify`) is green: 47 tests + a hard
+PoC is **built and runs**. Security gate (`make verify`) is green: 55 tests + a hard
 `pip-audit` CVE check + the `core/`-doesn't-import-`app/` guard.
 
 ## Fees & disclaimer

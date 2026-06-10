@@ -5,7 +5,7 @@ shows on stream in OBS) look and behave. This file tells you exactly which files
 to play with, which 4 rules you must not break, and how to see your change live.
 
 > One-line mental model: **looks & layout = yours. Money & security = off-limits.**
-> If `make verify` stays green (47 passed), you didn't break anything important.
+> If `make verify` stays green (55 passed), you didn't break anything important.
 
 ---
 
@@ -81,7 +81,7 @@ renderer, **keep `textContent`**. `make verify` has a test that fails if a messa
 
 ### Rule 4 — After every change, `make verify` must stay green
 ```
-make verify        # expect "47 passed" + "OK — core/ does not import app/"
+make verify        # expect "55 passed" + "OK — core/ does not import app/"
 ```
 Red = you broke a security invariant → **revert that change.** Green = safe.
 

@@ -16,7 +16,7 @@ make verify
 
 Expected tail:
 ```
-47 passed
+55 passed
 OK — core/ does not import app/
 === All checks passed ===
 ```
@@ -88,7 +88,7 @@ curl -X POST "http://127.0.0.1:8080/api/dev/test-tip?token=YOUR_OVERLAY_TOKEN"  
 ```
 
 Sound notes:
-- Default chime is `app/overlay/sounds/alert.wav` (replace with your own anytime).
+- Default chime is `app/overlay/sounds/alert.wav`; put your own WAV at `user/web/sounds/alert.wav` to override it (survives updates).
 - A plain Chrome tab may stay silent until you click the page once (autoplay block).
   **OBS Browser Source autoplays** → sound works there.
 
@@ -114,7 +114,7 @@ Sound notes:
 
 ## C. Status — verified vs not
 
-- ✅ Automated gate green (47 tests), `make verify` runs end-to-end.
+- ✅ Automated gate green (55 tests), `make verify` runs end-to-end.
 - ✅ Overlay reachable on `127.0.0.1:8080`; SSE wire format correct (single `id:`/`data:`);
   dev trigger fires through `process_tip`; `/api/charge` returns 403/429 (not 422).
 - ✅ `next_seq` TOCTOU race (F6) **fixed**: `event_seq` is allocated inside the

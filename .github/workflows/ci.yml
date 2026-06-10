@@ -26,7 +26,7 @@ jobs:
       - name: Build backend image
         run: docker compose build backend
 
-      - name: make verify  # 31 security invariants + hard pip-audit CVE gate + import guard
+      - name: make verify  # security-invariant suite + hard pip-audit CVE gate + import guard
         run: make verify
 
   # Prebuilt backend image on every release tag — non-technical users update with
