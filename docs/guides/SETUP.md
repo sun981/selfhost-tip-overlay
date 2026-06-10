@@ -112,6 +112,29 @@ Cloudflare Tunnel ทำให้ Omise/Stripe ส่งข้อมูลกา
 
 **ถ้ามีโดเมนจากที่อื่นอยู่แล้ว** (Namecheap, GoDaddy ฯลฯ): Cloudflare dashboard → **Add a site** → ใส่ชื่อโดเมน → เลือก plan **Free** → ระบบจะบอก nameserver 2 ตัว → ไปแก้ nameserver ที่เว็บที่คุณซื้อโดเมน → รอจน Cloudflare ขึ้นว่า Active (อาจรอเป็นชั่วโมง)
 
+#### เลือกชื่อโดเมนยังไงให้คุ้ม (คิดก่อนซื้อ 1 นาที)
+
+โดเมน 1 ชื่อ = บ้านออนไลน์ของคุณทั้งหลัง ไม่ใช่แค่หน้า tip — แตก **subdomain**
+(ชื่อย่อยหน้าจุด) ได้ฟรีไม่จำกัด ดังนั้น:
+
+- ✅ **ซื้อเป็นชื่อช่อง/ชื่อแบรนด์ของคุณ** เช่น `mochastream.com` — แล้วให้หน้า tip
+  อยู่ที่ `tip.mochastream.com` (วิธีตั้งอยู่ในข้อ 2.2)
+- ❌ เลี่ยงชื่อที่ล็อกการใช้งานแคบๆ เช่น `tip-mocha.com` หรือ `mocha-donate.com` —
+  วันหลังอยากทำเว็บอื่นต้องซื้อใหม่ (และคำว่า donate มีประเด็นกับเงื่อนไข gateway ด้วย)
+
+ตัวอย่างที่โดเมนเดียวกันต่อยอดได้ในอนาคต (ไม่ต้องจ่ายเพิ่ม):
+| Subdomain | ใช้ทำอะไร |
+|---|---|
+| `tip.ชื่อคุณ.com` | หน้า tip (ระบบนี้) |
+| `ชื่อคุณ.com` (ตัวหลัก) | เว็บแนะนำตัว / link-in-bio / ตารางไลฟ์ |
+| `shop.ชื่อคุณ.com` | ขายของที่ระลึก |
+| `clip.ชื่อคุณ.com` | รวมคลิปไฮไลต์ |
+| อีเมล `contact@ชื่อคุณ.com` | อีเมลแบรนด์ตัวเอง (Cloudflare Email Routing ฟรี — forward เข้า Gmail ได้) |
+
+> ตั้งหน้า tip ไว้บนตัวหลัก (`ชื่อคุณ.com` เลย ไม่มี subdomain) ก็ได้เหมือนกัน —
+> ระบบใช้แค่ path `/` กับ `/webhooks/...` วันหลังค่อยย้ายไป `tip.` แล้วเอาตัวหลัก
+> ไปทำเว็บก็ทำได้ (แค่แก้ hostname ในข้อ 2.2 + URL webhook + `CORS_ORIGIN` ให้ตรงกัน)
+
 ### 2.1 สร้าง Tunnel
 
 1. ไปที่ [one.dash.cloudflare.com](https://one.dash.cloudflare.com) → **Networks** → **Tunnels**
@@ -131,13 +154,19 @@ Cloudflare Tunnel ทำให้ Omise/Stripe ส่งข้อมูลกา
 
 1. หลัง create tunnel เสร็จ → คลิกชื่อ tunnel → **Edit** → tab **Public Hostname**
 2. **Add a public hostname**:
-   - Subdomain: ว่างไว้ (ไม่ต้องใส่)
+   - Subdomain: ใส่ `tip` (แนะนำ — เก็บตัวหลักไว้ทำอย่างอื่น ดูกล่อง "เลือกชื่อโดเมน" ข้างบน)
+     หรือเว้นว่างถ้าอยากใช้ตัวหลัก `ชื่อคุณ.com` ไปเลย
    - Domain: เลือก domain ของคุณ
    - Service Type: **HTTP**
    - URL: `frontend:80`
 3. กด **Save hostname**
 
 > nginx ใน frontend จะส่งต่อ `/api/*` และ `/webhooks/*` ไปหา backend ให้อัตโนมัติ ไม่ต้องตั้งหลาย hostname
+
+> ⚠️ **จุดเดียวที่พลาดบ่อย:** ที่อยู่ที่เลือกตรงนี้ (เช่น `tip.ชื่อคุณ.com`) ต้องใช้
+> **ตัวเดียวกันเป๊ะ** ในอีก 2 ที่: ① URL webhook ใน dashboard ของ Omise/Stripe
+> (ขั้นตอนที่ 1) และ ② ค่า `CORS_ORIGIN` ในไฟล์ `.env` (ขั้นตอนที่ 4) —
+> ทุกที่ในคู่มือที่เขียน `yourdomain.com` ให้แทนด้วยที่อยู่นี้
 
 ### 2.3 ตั้ง SSL บน Cloudflare
 
