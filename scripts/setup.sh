@@ -193,6 +193,13 @@ done < "$TEMPLATE" > "$TMP"
 mv "$TMP" "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 
+# ── user/settings.json from template (customization that survives updates) ───
+
+if [ ! -f "$REPO_ROOT/user/settings.json" ] && [ -f "$REPO_ROOT/user/settings.example.json" ]; then
+  cp "$REPO_ROOT/user/settings.example.json" "$REPO_ROOT/user/settings.json"
+  say "  ✓ สร้าง user/settings.json จาก template (แก้ค่าได้ที่ไฟล์นี้ — รอดทุกอัปเดต)"
+fi
+
 say ""
 say "============================================"
 say " เสร็จ — เขียน .env แล้ว (chmod 600)"

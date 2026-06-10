@@ -11,6 +11,7 @@ COPY core/ ./core/
 COPY contracts/ ./contracts/
 COPY app/__init__.py ./app/
 COPY app/sse_broadcaster.py ./app/
+COPY app/settings_loader.py ./app/
 COPY app/obs_client.py ./app/
 COPY app/reconciliation.py ./app/
 COPY app/process_tip.py ./app/

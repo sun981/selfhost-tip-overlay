@@ -1,7 +1,8 @@
 """
 Word filter stage — Safe Edge.
 Masks messages containing banned words.
-Configured via app/settings.json banned_words list — no code change needed.
+Configured via settings.json banned_words (user/settings.json overrides the
+shipped app/settings.json — see app/settings_loader.py). No code change needed.
 
 Rules:
 - Normalize input (lowercase, collapse whitespace) before matching
@@ -11,11 +12,10 @@ Rules:
 from __future__ import annotations
 
 import dataclasses
-import json
 import re
 import unicodedata
-from pathlib import Path
 
+from app.settings_loader import load_settings
 from contracts.events import TipEvent, StageResult
 
 _settings: dict | None = None
@@ -25,8 +25,7 @@ _compiled_patterns: list[re.Pattern] | None = None
 def _get_banned_words() -> list[str]:
     global _settings
     if _settings is None:
-        path = Path(__file__).parent.parent / "settings.json"
-        _settings = json.loads(path.read_text()) if path.exists() else {}
+        _settings = load_settings()
     return _settings.get("banned_words", [])
 
 

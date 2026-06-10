@@ -36,3 +36,11 @@ data/
 *.sqlite
 *.sqlite3
 *.db
+
+# user/ = customization that must survive updates — only docs/templates tracked
+user/*
+!user/README.md
+!user/settings.example.json
+!user/web/
+user/web/*
+!user/web/.gitkeep

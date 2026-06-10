@@ -36,14 +36,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 
 # ── Settings (config-over-code, ARCHITECTURE §13.2) ─────────────────────────
 
-def _load_settings() -> dict:
-    settings_path = Path(__file__).parent / "app" / "settings.json"
-    if settings_path.exists():
-        return json.loads(settings_path.read_text())
-    return {}
+from app.settings_loader import load_settings
 
-
-SETTINGS = _load_settings()
+SETTINGS = load_settings()
 
 
 # Rate limiter lives in core/ratelimit.py (shared with routes for @limiter.limit).

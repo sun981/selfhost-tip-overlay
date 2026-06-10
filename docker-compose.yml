@@ -12,6 +12,9 @@ services:
       - DATABASE_URL=${DATABASE_URL:-sqlite:////data/tips.db}
     volumes:
       - db_data:/data
+      # User customization (survives updates): user/settings.json overrides the
+      # image-baked app/settings.json. See user/README.md.
+      - ./user:/app/user:ro
     tmpfs:
       - /tmp
     networks:
@@ -44,6 +47,9 @@ services:
     image: nginx:1.30.2-alpine@sha256:5f979dcfed4ce6461873f087e8c980d6e29b084b9e8776d9704a7e989b5f4898
     volumes:
       - ./app/tip:/usr/share/nginx/html:ro
+      # user theme override, served at /user/ via nginx alias (can't nest a
+      # mount inside the :ro html bind above) — see user/README.md
+      - ./user/web:/srv/user:ro
       - ./nginx/frontend.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - tunnel
@@ -68,6 +74,9 @@ services:
     image: nginx:1.30.2-alpine@sha256:5f979dcfed4ce6461873f087e8c980d6e29b084b9e8776d9704a7e989b5f4898
     volumes:
       - ./app/overlay:/usr/share/nginx/html:ro
+      # user theme + alert-sound override, served at /user/ via nginx alias
+      # (can't nest a mount inside the :ro html bind above) — see user/README.md
+      - ./user/web:/srv/user:ro
       - ./nginx/overlay.conf:/etc/nginx/conf.d/default.conf:ro
     ports:
       - "127.0.0.1:8080:80"

@@ -5,12 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tip Overlay</title>
   <link rel="stylesheet" href="style.css">
+  <!-- user theme override — 404s harmlessly until user/web/theme.css exists -->
+  <link rel="stylesheet" href="user/theme.css">
 </head>
 <body>
   <div id="overlay-container"></div>
 
-  <!-- Alert sound — path configured in settings.json -->
+  <!-- Alert sound — first source that loads wins: user override, then shipped default -->
   <audio id="alert-sound" preload="auto">
+    <source src="user/sounds/alert.wav" type="audio/wav">
     <source src="sounds/alert.wav" type="audio/wav">
   </audio>
 

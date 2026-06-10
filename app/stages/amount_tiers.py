@@ -1,13 +1,12 @@
 """
 Amount tier stage — Safe Edge.
 If amount < show_message_min → hide message (don't show on overlay).
-Configured via app/settings.json — no code change needed.
+Configured via settings.json (user/settings.json overrides the shipped
+app/settings.json — see app/settings_loader.py). No code change needed.
 """
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
+from app.settings_loader import load_settings
 from contracts.events import TipEvent, StageResult
 
 _settings: dict | None = None
@@ -16,8 +15,7 @@ _settings: dict | None = None
 def _get_settings() -> dict:
     global _settings
     if _settings is None:
-        path = Path(__file__).parent.parent / "settings.json"
-        _settings = json.loads(path.read_text()) if path.exists() else {}
+        _settings = load_settings()
     return _settings
 
 
