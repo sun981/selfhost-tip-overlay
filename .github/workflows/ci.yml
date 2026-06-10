@@ -53,10 +53,13 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           # v0.2.1 → 0.2.1 + 0.2 (compose pins minor; patch releases auto-apply
-          # on `compose pull`). Deliberately no `latest` for money software.
+          # on `compose pull`). Deliberately no `latest` for money software —
+          # flavor latest=false because metadata-action's auto mode adds it on semver.
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+          flavor: |
+            latest=false
       - uses: docker/build-push-action@v6
         with:
           context: .
