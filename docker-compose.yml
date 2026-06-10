@@ -4,6 +4,10 @@ name: tip-overlay
 
 services:
   backend:
+    # Prebuilt image published by CI on each release tag (pinned to a minor —
+    # patch releases apply on `docker compose pull && docker compose up -d`).
+    # `build:` stays for forks/dev: `docker compose build backend` overrides.
+    image: ghcr.io/sun981/selfhost-tip-overlay:0.2
     build:
       context: .
       dockerfile: Dockerfile.backend
