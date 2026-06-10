@@ -206,7 +206,15 @@ class StripeAdapter:
             auth=(self._skey, ""),
             timeout=30.0,
         ) as client:
-            params: dict[str, Any] = {"created[gte]": since_ts, "limit": 100}
+            # expand latest_charge: the PI's `created` is when the QR was shown, not
+            # when the donor paid (PromptPay is async). Reconciliation's "too old to
+            # push" threshold keys on paid_at — using QR-creation time would silently
+            # suppress the overlay for a tip paid minutes ago on an older QR.
+            params: dict[str, Any] = {
+                "created[gte]": since_ts,
+                "limit": 100,
+                "expand[]": "data.latest_charge",
+            }
             while True:
                 resp = client.get("/v1/payment_intents", params=params)
                 resp.raise_for_status()
@@ -216,10 +224,15 @@ class StripeAdapter:
                     status = pi.get("status", "")
                     # Normalize Stripe's "succeeded" → our "successful"
                     norm_status = "successful" if status == "succeeded" else status
-                    created = pi.get("created")
+                    latest_charge = pi.get("latest_charge")
+                    paid_ts = (
+                        latest_charge.get("created")
+                        if isinstance(latest_charge, dict)
+                        else None
+                    ) or pi.get("created")
                     paid_at = (
-                        datetime.fromtimestamp(int(created), tz=timezone.utc)
-                        if created
+                        datetime.fromtimestamp(int(paid_ts), tz=timezone.utc)
+                        if paid_ts
                         else None
                     )
                     results.append(ChargeData(

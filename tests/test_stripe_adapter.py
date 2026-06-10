@@ -155,3 +155,49 @@ class TestStripeEventMapping:
         })
         event = stripe_adapter.verify_webhook(body, headers)
         assert event.kind == "ignored"
+
+
+# ── Reconciliation paid_at ────────────────────────────────────────────────────
+
+class TestStripeListRecent:
+    """paid_at must be the charge (payment) time, not the PI (QR-creation) time —
+    PromptPay is async and recon's too-old-to-push threshold keys on paid_at."""
+
+    PI_CREATED = 1780000000   # QR shown
+    PAID = 1780001200         # donor paid 20 min later
+
+    def _fake_client(self, monkeypatch, pi: dict):
+        class FakeResp:
+            status_code = 200
+            def raise_for_status(self): pass
+            def json(self_inner):
+                return {"data": [pi], "has_more": False}
+
+        class FakeClient:
+            def __init__(self, *a, **k): pass
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def get(self, *a, **k): return FakeResp()
+
+        monkeypatch.setattr("core.payment.stripe.httpx.Client", FakeClient)
+
+    def test_paid_at_uses_latest_charge_created(self, stripe_adapter, monkeypatch):
+        from datetime import datetime, timezone
+        self._fake_client(monkeypatch, {
+            "id": "pi_1", "amount": 5000, "currency": "thb", "status": "succeeded",
+            "metadata": {}, "created": self.PI_CREATED,
+            "latest_charge": {"id": "ch_1", "created": self.PAID},
+        })
+        [row] = stripe_adapter.list_recent(datetime.now(timezone.utc))
+        assert row.status == "successful"
+        assert row.paid_at == datetime.fromtimestamp(self.PAID, tz=timezone.utc)
+
+    def test_paid_at_falls_back_to_pi_created(self, stripe_adapter, monkeypatch):
+        from datetime import datetime, timezone
+        self._fake_client(monkeypatch, {
+            "id": "pi_2", "amount": 5000, "currency": "thb", "status": "succeeded",
+            "metadata": {}, "created": self.PI_CREATED,
+            "latest_charge": "ch_unexpanded",  # string id if expand was dropped
+        })
+        [row] = stripe_adapter.list_recent(datetime.now(timezone.utc))
+        assert row.paid_at == datetime.fromtimestamp(self.PI_CREATED, tz=timezone.utc)
