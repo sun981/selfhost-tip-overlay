@@ -408,27 +408,38 @@ curl -s -o /dev/null -w "%{http_code}" -X POST https://yourdomain.com/webhooks/o
 
 ## ปรับแต่ง
 
-### เปลี่ยนสี/ฟอนต์ overlay
-แก้ `app/overlay/style.css` — ไม่ต้อง restart
-
-### เปลี่ยนสี tip page
-แก้ `app/tip/style.css` — ไม่ต้อง restart
+ของที่คุณแก้เองอยู่ในโฟลเดอร์ **`user/`** ทั้งหมด — โฟลเดอร์นี้ไม่ถูกแตะตอนอัปเดตระบบ
+(ดูรายละเอียดใน `user/README.md`)
 
 ### ตั้ง banned words และ amount tiers
-แก้ `app/settings.json`:
+แก้ `user/settings.json` (ถ้ายังไม่มี copy จาก `user/settings.example.json` —
+ตัว setup wizard สร้างให้อยู่แล้ว) ใส่เฉพาะค่าที่อยากเปลี่ยน:
 ```json
 {
   "banned_words": ["คำที่ไม่อยากให้ขึ้น", "คำหยาบ"],
   "amount_tiers": {
     "show_message_min": 5000
-  },
-  "alert_sound": "sounds/alert.mp3"
+  }
 }
 ```
 แล้ว: `docker compose restart backend`
 
-### เพิ่มเสียง alert
-วางไฟล์ `.mp3` ใน `app/overlay/sounds/` แล้วแก้ `"alert_sound"` ใน settings.json
+### เปลี่ยนสี/ฟอนต์ overlay และ tip page
+สร้าง/แก้ `user/web/theme.css` — โหลดทับ style เดิมทั้งสองหน้า แค่ refresh
+browser source ใน OBS (อยากแก้ลึกกว่านั้น `app/overlay/style.css` / `app/tip/style.css`
+ก็ยังแก้ได้ แต่จะไปชนกับการอัปเดตระบบ — theme.css ปลอดภัยกว่า)
+
+### เปลี่ยนเสียง alert
+วางไฟล์เสียงของคุณ (ฟอร์แมต WAV ชื่อ `alert.wav`) ที่ `user/web/sounds/alert.wav`
+— ระบบใช้แทนเสียง default ทันที แค่ refresh browser source
+
+### อัปเดตระบบเป็นเวอร์ชันใหม่
+```bash
+git pull                      # ดึงหน้าเว็บ/ไฟล์ config เวอร์ชันใหม่
+docker compose pull           # ดึง backend image เวอร์ชันใหม่
+docker compose up -d          # รีสตาร์ตด้วยของใหม่
+```
+ของใน `user/` (settings, theme, เสียง) อยู่ครบเหมือนเดิมทุกครั้ง
 
 ---
 

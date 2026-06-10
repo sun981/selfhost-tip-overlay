@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repo status
 
-The PoC is **built and runs** (`docker compose`). Source: `core/` `app/` `routes/` `contracts/` `main.py`; tests in `tests/`; gate = `make verify` (green). The OBS-overlay money path works end to end in Omise test mode.
+The PoC is **built and runs** (`docker compose`). Source: `core/` `app/` `routes/` `contracts/` `main.py`; user customization in `user/` (gitignored, bind-mounted — D16); tests in `tests/`; gate = `make verify` (green). The OBS-overlay money path works end to end in Omise test mode. Repo is **public** (`sun981/selfhost-tip-overlay`), released from `v0.1.0`; CI publishes the backend image to ghcr on `v*` tags (D17).
 
 ## Where the docs live (map)
 
@@ -57,7 +57,8 @@ Self-host **streamer tip overlay** that replaces TipMe (shut down). Donor pays v
 
 7. **Secure Core vs Safe Edge** (§13) governs where code lives and what may be AI-edited:
    - `core/` = signature verify, secret load, charge create (skey), idempotency, replay, CORS, startup self-test, payment adapter. **Human-review-only** (§13.5). The `PreToolUse` `core/`-protection hook is **deliberately NOT installed yet** (owner wants `core/` editable for now) — treat `core/` edits as human-review-required by convention.
-   - `app/` = overlay/tip look, `process_tip` stages, `settings.json`. **Vibecode-safe.**
+   - `app/` = overlay/tip look, `process_tip` stages, `settings.json` (shipped defaults). **Vibecode-safe.**
+   - `user/` = user-owned overrides — `settings.json` (shallow per-top-level-key over `app/settings.json` via `app/settings_loader.py`), `web/theme.css`, `web/sounds/alert.wav`. Gitignored + bind-mounted; survives `git pull`/`compose pull` (D16). **Vibecode-safe.**
    - `contracts/` = stable interfaces (`TipEvent`, `OverlayEvent`). Dependency is one-way: `app/` → `contracts/` ← `core/`; **core never imports app**.
    - Security comes from **structure + server-set CSP + fail-closed startup self-test**, not from author discipline.
 
@@ -65,7 +66,7 @@ Self-host **streamer tip overlay** that replaces TipMe (shut down). Donor pays v
 
 The single source of truth for scope is the **`[!success] LOCKED` block at the top of `docs/design/ARCHITECTURE.md`**. Summary:
 
-- **In PoC:** PromptPay (server-side charge, no Omise.js) · SQLite · overlay **local** (localhost, not via tunnel; OBS is on the same machine) · ingress **path-based** (`/` = tip page, `/webhooks/omise`) · **min ฿20** (Omise hard limit) · `process_tip` runs **one real stage = word-filter** (+ **amount-tiers**, both config-driven from `settings.json`) · **alert sound** (static audio) · post-pay feedback to the donor · config = `settings.json` + CSS theme only (**no config UI** — user edits files).
+- **In PoC:** PromptPay (server-side charge, no Omise.js) · SQLite · overlay **local** (localhost, not via tunnel; OBS is on the same machine) · ingress **path-based** (`/` = tip page, `/webhooks/omise`) · **min ฿20** (Omise hard limit) · `process_tip` runs **one real stage = word-filter** (+ **amount-tiers**, both config-driven from `settings.json`) · **alert sound** (static audio) · post-pay feedback to the donor · config = `user/settings.json` overrides + `user/web/theme.css` (**no config UI** — user edits files; shipped defaults in `app/settings.json`).
 - **Roadmap (do NOT build now):** card (Omise.js + SRI returns), TTS (provider chosen = Google), **donor-pays-fee toggle**, goal bar / top-tipper, config UI, moderation hold-queue, remote OBS (the seam is already designed).
 - **Defaults (use unless told otherwise):** message cap 200 chars · privacy purge 90 days · on reconciliation, do not push to the overlay if `paid_at` is older than ~10 min before startup (still record it).
 
@@ -74,7 +75,8 @@ The single source of truth for scope is the **`[!success] LOCKED` block at the t
 ## Commands
 
 Entry points (per `docs/design/ARCHITECTURE.md` §13.3 / `docs/design/SPEC.md` §7):
-- `docker compose up -d` — run the full stack (4 services: backend, frontend, overlay, cloudflared — SQLite via volume, no db service)
+- `docker compose up -d` — run the full stack (4 services: backend, frontend, overlay, cloudflared — SQLite via volume, no db service). Backend has `image:` (ghcr, published on release tags) + `build:` (forks/dev) side by side; `user/` is bind-mounted into backend + both nginx (`/srv/user` → `/user/`).
+- Schema changes go through `core/db/migrations.py` (forward-only, `schema_version`, SQLite backup before migrate, fail-closed — D18). Bump `SCHEMA_VERSION` + add `MIGRATIONS[n]` + keep `schema.py` create_all in sync + test in `tests/test_migrations.py`.
 - `make verify` (a.k.a. `docker compose run tests`) — runs the SPEC §11 security invariants as a test suite; **green is the ship gate**. Runs `pip-audit` as a **hard gate** (self-bootstrapped `.audit-venv`, fails on any CVE) so green means "no known CVE in current pins". Image scan = separate `make scan` (trivy, fails on fixable HIGH/CRITICAL, dated `.trivyignore`). A broken security invariant must fail the build.
 - Single test: `pytest tests/<file>::<test>` — runs inside the backend image (see `Makefile` `PYTEST_RUN`; `tests/` is mounted at runtime).
 

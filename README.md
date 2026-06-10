@@ -63,9 +63,9 @@ You only ever edit a handful of things. Everything else is machinery the wizard 
 |---|---|
 | `setup.command` / `make setup` | first-time setup (writes `.env`) |
 | `.env` | your secrets — created by the wizard, **never commit it** |
-| `app/settings.json` | banned words, amount tiers, alert sound, retention |
-| `app/overlay/style.css` · `app/tip/style.css` | colours / fonts |
-| `app/overlay/sounds/` | alert audio |
+| `user/settings.json` | banned words, amount tiers, retention — survives updates (see `user/README.md`) |
+| `user/web/theme.css` | colours / fonts for both pages — survives updates |
+| `user/web/sounds/alert.wav` | your alert audio — overrides the default |
 
 | Don't touch (machinery / security) | Why |
 |---|---|
@@ -73,6 +73,14 @@ You only ever edit a handful of things. Everything else is machinery the wizard 
 | `routes/` · `contracts/` · `main.py` | API wiring |
 | `Dockerfile.backend` · `docker-compose.yml` · `nginx/` · `requirements.txt` | build & serving |
 | `tests/` · `tools/` · `Makefile` | the `make verify` security gate |
+
+## Updating
+
+```bash
+git pull && docker compose pull && docker compose up -d
+```
+
+Everything you customized lives in `user/` and is untouched by updates.
 
 ## Documentation
 

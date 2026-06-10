@@ -16,7 +16,8 @@
 > [!success] LOCKED — review round 2 (2026-06-03) — ข้อสรุปสุดท้าย ใช้สร้าง PoC (supersede §14 + note กระจัดกระจาย)
 > **Naming:** product = **"Tip Overlay System"**. user-facing ทุกจุด (หน้า/ปุ่ม/README/ข้อความถึงผู้ให้/supporter) = **"Tip"** — ห้าม "Donate/Donation". **code identifier ทั้งหมดเปลี่ยนแล้ว** (`tips` table, `supporter_name`, `TipEvent`, `process_tip`) — โปรเจกต์เป็น open source ดังนั้น identifier ต้องสะอาดด้วย
 > **PoC scope (ทำรอบนี้):** PromptPay server-side ไม่ใช้ Omise.js (D2) · SQLite (D5) · **min ฿20** (Omise hard limit, §14 Q2) · overlay **local** (localhost, OBS เครื่องเดียวกับ backend, ไม่ผ่าน tunnel — §14 Q3) · ingress **path-based** (`/`=tip page, `/webhooks/omise` — §14 Q5) · **word-filter** + **amount-tiers** (ปรับจาก `settings.json`) + **alert sound** (static) · feedback หลังจ่าย = มี · config = **`settings.json` + CSS theme เท่านั้น ไม่มี config UI** (user custom เองผ่านไฟล์ — §14 Q8) · 🔧[rev 2026-06-05] **gateway เลือกได้ `PAYMENT_GATEWAY=omise|stripe`** (ทั้งคู่ PromptPay server-side ไม่ใช้ client JS; Stripe = adapter ที่ 2 ใน Secure Core — §9.5)
-> **Roadmap (ยังไม่ทำ):** card (+Omise.js+SRI) · TTS (provider=Google ตอน build) · **donor-pays-fee toggle** (§14 Q10) · goal bar / top-tipper · config UI · moderation hold queue · remote OBS (seam พร้อมแล้ว §8.5)
+> **Roadmap (ยังไม่ทำ):** card (+Omise.js+SRI) · TTS (provider=Google ตอน build) · **donor-pays-fee toggle** (§14 Q10) · goal bar / top-tipper · config UI (ออกแบบให้มี auth ตั้งแต่วันแรก) · moderation hold queue · remote OBS (seam พร้อมแล้ว §8.5) · homelab/LAN mode (overlay bind LAN + token; `OBS_WS_HOST` รองรับแล้ว)
+> **Hosting scope 🔧[rev 2026-06-10]:** self-host บน **hardware ที่ user เป็นเจ้าของเท่านั้น** — เครื่องเดียวกับ OBS หรือ homelab ใน LAN เดียวกัน. **cloud VPS = ไม่ support** (threat model คนละชั้น: admin surface บน internet, secret บนเครื่องเช่า, ต้องมี auth เต็มรูปแบบ)
 > **Defaults (ไม่ค้าน = ใช้เลย):** message cap 200 ตัว · privacy purge 90 วัน · recon ไม่ push ขึ้นจอถ้า `paid_at` เก่ากว่า ~10 นาทีก่อน startup (ยัง record เข้า DB)
 > **Build handoff:** PoC จะสร้างโดย session ใหม่ (Sonnet + advisor) ที่**ไม่มี chat history นี้** → docs ต้องครบในตัว. ลำดับสร้าง = SPEC §10. ค้าง: rename folder (manual step ดู handoff)
 
@@ -80,6 +81,9 @@
 | D13 | core isolation        | **PreToolUse hook block การแก้ core (force ถาม user แม้ automode) — build ขั้นสุดท้าย** | enforcement ชั้น tool แข็งกว่า AGENTS.md; ทำก่อนจะ block การ build เอง — ดู §13.5        |
 | D14 | gateway flex          | **`PaymentGateway` adapter interface (Omise concrete)** — เพิ่มเจ้า = adapter ใน Secure Core + review ไม่ใช่ config | verify ต่างเจ้า + security-critical → reviewed-flex ไม่ใช่ vibecode toggle — ดู §9.5      |
 | D15 | DB/hosting flex       | **DB = `DATABASE_URL` config (SQLAlchemy), hosting = compose portable**                | config-flex ล้วน zero-code — แต่มี caveat OBS/NAS/cloud — ดู §10.3                       |
+| D16 🔧[rev 2026-06-10] | user customization | **`user/` dir แยก physical** — settings override + theme.css + เสียง อยู่นอก upstream tree (gitignored, bind-mount) | update (`git pull`/`compose pull`) ไม่มีทางชน customization — แก้ปัญหา fork-drift ที่ระดับโครงสร้าง ไม่ใช่ docs |
+| D17 🔧[rev 2026-06-10] | distribution | **prebuilt backend image บน ghcr** publish โดย CI ทุก release tag (`vX.Y.Z` → `X.Y.Z`+`X.Y`, ไม่มี `latest`), gated หลัง verify; compose มี `image:`+`build:` คู่กัน | user ไม่ technical update ด้วย `compose pull` ไม่ต้องมี git/toolchain; fork ยัง build เองได้ |
+| D18 🔧[rev 2026-06-10] | schema evolution | **forward-only migration runner + `schema_version`** ใน core/db, รันตอน startup, fail-closed, backup SQLite ก่อน migrate, DB ใหม่กว่า build = refuse start | สร้างก่อนมี schema change จริง — ทำทีหลังตอน user มีข้อมูลจริงแพงกว่ามาก |
 
 ### 3.1 ⚠️ D2 ขยายความ — ทำไม PoC ไม่ใช้ Omise.js (จุดที่อยากให้ review มากสุด)
 

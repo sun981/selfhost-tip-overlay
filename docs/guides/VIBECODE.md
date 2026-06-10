@@ -24,7 +24,13 @@ app/
 │  ├─ index.html             🟢 the form  (keep the input name= attrs below)
 │  └─ style.css              🟢 page look — go wild
 │
-└─ settings.json             🟢 config knobs, NO code (words, tiers, caps, sound path)
+└─ settings.json             🟢 shipped defaults — prefer overriding in user/settings.json
+
+user/                         🟢 YOURS — survives every update (see user/README.md)
+├─ settings.json             🟢 your config overrides (per top-level key)
+└─ web/
+   ├─ theme.css              🟢 loads over both pages' style.css — go wild here first
+   └─ sounds/alert.wav       🟢 your chime — presence of the file overrides the default
 
 contracts/events.py          🟡 the field names overlay.js reads — rename = break. ASK FIRST.
 routes/                       🟡 API endpoints (charge / webhook / sse). backend logic.
@@ -100,7 +106,11 @@ When a tip is paid, the backend pushes one JSON event down the SSE stream
 
 ---
 
-## 4. Config without code — `app/settings.json`
+## 4. Config without code — `user/settings.json`
+
+Shipped defaults live in `app/settings.json`; put YOUR values in `user/settings.json`
+(copy `user/settings.example.json`). Override is per top-level key — to change
+anything inside `amount_tiers`, copy the whole `amount_tiers` object.
 
 | Key | What it does |
 |---|---|
@@ -111,9 +121,8 @@ When a tip is paid, the backend pushes one JSON event down the SSE stream
 | `privacy_purge_days` | how long tips are kept (default 90) |
 | `recon_old_threshold_minutes` | on restart, don't re-push tips older than this |
 
-**Swap the chime (most reliable way):** replace `app/overlay/sounds/alert.wav` with your own
-file, **keep the filename `alert.wav`**. (`overlay/index.html` references that exact path; if
-you want a different filename you must also edit the `<source src>` there.)
+**Swap the chime (most reliable way):** put your own WAV at `user/web/sounds/alert.wav`
+— the overlay picks it over the shipped default automatically, and it survives updates.
 
 ---
 
@@ -123,7 +132,9 @@ It depends on *which* file you edited, because of how the stack is wired:
 
 | You edited… | How it's served | To see the change |
 |---|---|---|
+| `user/web/*` (theme.css, sounds) | **bind-mounted** into nginx | just **reload** the OBS browser source / browser tab. No rebuild. |
 | `app/overlay/*` or `app/tip/*` (html/css/js/sound) | **bind-mounted** into nginx | just **reload** the OBS browser source / browser tab. No rebuild. |
+| `user/settings.json` | **bind-mounted** into the backend | `docker compose restart backend` |
 | `app/settings.json`, `app/stages/*`, any backend `.py` | **baked into the backend image** | `docker compose up -d --build backend` |
 
 Overlay URL to test in a plain browser (token required):

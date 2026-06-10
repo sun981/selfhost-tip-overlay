@@ -10,7 +10,8 @@
 | `app/stages/` | Safe Edge | ✅ |
 | `app/tip/` | Safe Edge | ✅ |
 | `app/overlay/` | Safe Edge | ✅ |
-| `app/settings.json` | Config | ✅ Config-only changes |
+| `app/settings.json` | Config (shipped defaults) | ✅ Config-only changes — prefer `user/settings.json` for a user's own values |
+| `user/` | User overrides (settings/theme/sound) — survives updates (D16) | ✅ |
 | `tests/` | Tests | ✅ |
 
 ## Always run after any change
@@ -23,11 +24,11 @@ If it goes red → revert. Green = security invariants pass.
 
 ## Quick config (no code needed)
 
-- Change banned words → edit `app/settings.json` `banned_words`
-- Change amount tier → edit `app/settings.json` `amount_tiers.show_message_min` (in satang)
-- Change alert sound → edit `app/settings.json` `alert_sound` path, put file in `app/overlay/sounds/`
-- Change overlay style → edit `app/overlay/style.css`
-- Change tip page style → edit `app/tip/style.css`
+- Change banned words → edit `user/settings.json` `banned_words`
+- Change amount tier → edit `user/settings.json` `amount_tiers.show_message_min` (in satang)
+- Change alert sound → put a WAV at `user/web/sounds/alert.wav` (overrides the default)
+- Change overlay/tip-page style → edit `user/web/theme.css` (loads over both pages' style.css)
+- Deeper UI surgery → `app/overlay/style.css` / `app/tip/style.css` (upstream files — may conflict on update)
 
 ## What NOT to touch
 
