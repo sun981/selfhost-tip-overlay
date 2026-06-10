@@ -11,6 +11,10 @@ gateway account. The system never holds, transfers, or stores funds, and stores 
 > Naming note: it's a **"Tip"** system, not "Donation" — user-facing text *and* code identifiers
 > say Tip/Supporter (Omise prohibits "donations"). Keep it that way.
 
+| Supporter sees | Stream shows |
+|---|---|
+| ![Tip page — name, amount, message, PromptPay QR](docs/images/tip-page.png) | ![Tip alert card on the OBS overlay](docs/images/overlay-card.png) |
+
 ## Status
 
 PoC is **built and runs**. Security gate (`make verify`) is green: 55 tests + a hard
