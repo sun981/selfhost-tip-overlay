@@ -122,8 +122,8 @@ fi
 # Gateway choice first — decides which secrets we ask for.
 say ""
 say "เลือก payment gateway (ทั้งคู่ใช้ PromptPay server-side):"
-say "  1) Omise   — ค่าธรรมเนียม 1.65%+VAT"
-say "  2) Stripe  — ค่าธรรมเนียม 1.65%"
+say "  1) Omise   — ค่าธรรมเนียม PromptPay 1.65% +VAT"
+say "  2) Stripe  — ค่าธรรมเนียม PromptPay 1.65% (VAT ตามสถานะภาษีของบัญชี) + ฿10/refund"
 while :; do
   printf '> เลือก [1/2] (default 1): ' >&2
   IFS= read -r g || g=""
