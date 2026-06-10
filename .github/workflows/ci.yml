@@ -31,6 +31,11 @@ jobs:
 
   secret-scan:
     runs-on: ubuntu-latest
+    # Dependabot-triggered runs get a read-only GITHUB_TOKEN by default; gitleaks-action
+    # calls the PR API in pull_request mode and 403s without this explicit grant.
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v6
         with:
