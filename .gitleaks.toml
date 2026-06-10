@@ -6,7 +6,11 @@ useDefault = true
 
 [allowlist]
 description = "Documentation placeholder values — not real secrets"
+# Match against the whole line (default target is the captured secret only,
+# which drops the `token=` prefix and misses the allowlist).
+regexTarget = "line"
 regexes = [
-  # docs/guides/SETUP.md overlay-URL example token (placeholder, never a real OVERLAY_TOKEN)
+  # SETUP.md overlay-URL example token (placeholder, never a real OVERLAY_TOKEN).
+  # Path changed in the docs reorg, so allowlist the string, not the path.
   '''token=abc123xyz456''',
 ]
