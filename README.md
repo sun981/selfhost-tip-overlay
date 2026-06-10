@@ -31,7 +31,8 @@ PoC is **built and runs**. Security gate (`make verify`) is green: 55 tests + a 
 
 > 🇹🇭 **ไม่ถนัดเรื่องเทคนิค? อ่านคู่มือภาษาไทยทีละขั้น:
 > [docs/guides/SETUP.md](docs/guides/SETUP.md)** — มีภาพรวม, ค่าใช้จ่าย, ศัพท์ที่ต้องรู้,
-> และวิธีใช้งานประจำวัน ครบในไฟล์เดียว
+> และวิธีใช้งานประจำวัน ครบในไฟล์เดียว — หรือกาง
+> **[checklist 1 หน้า](docs/guides/QUICKSTART.md)** คู่กันไว้กันหลง
 
 **macOS — one click:** double-click **`setup.command`**. It asks which gateway you use
 (Omise or Stripe) and for its keys, OBS WebSocket password, and domain; generates a
@@ -88,11 +89,15 @@ Everything you customized lives in `user/` and is untouched by updates.
 |---|---|
 | [docs/design/SPEC.md](docs/design/SPEC.md) | Binding spec — §4 security invariants, §11 success criteria |
 | [docs/design/ARCHITECTURE.md](docs/design/ARCHITECTURE.md) | Design decisions D1–D15, dataflows, Secure Core / Safe Edge, locked scope |
+| [docs/guides/QUICKSTART.md](docs/guides/QUICKSTART.md) | One-page install checklist (Thai) |
 | [docs/guides/SETUP.md](docs/guides/SETUP.md) | Install & deploy (non-technical, step by step) |
 | [docs/guides/TESTING.md](docs/guides/TESTING.md) | How to test — `make verify` + manual checks |
 | [docs/guides/VIBECODE.md](docs/guides/VIBECODE.md) | Safely editing the tip page & overlay (what you can change, what you can't) |
 | [docs/security/SECURITY-REVIEW.md](docs/security/SECURITY-REVIEW.md) | Pre-open-source security audit (point-in-time) |
 | [SECURITY.md](SECURITY.md) | Security policy — how to report a vulnerability |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Ground rules for PRs (scope, `core/` review, `make verify`) |
+| [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
+| [user/README.md](user/README.md) | Your customization folder — survives updates |
 | [AGENTS.md](AGENTS.md) · [CLAUDE.md](CLAUDE.md) | Guidance for AI coding assistants (edit zones) |
 
 ## Stack

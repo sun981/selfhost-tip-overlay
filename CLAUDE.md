@@ -15,11 +15,15 @@ Markdown docs were reorganized into `docs/` (this index is the source of truth f
 | Spec (binding) | `docs/design/SPEC.md` | §4 security invariants, §11 success criteria |
 | Architecture | `docs/design/ARCHITECTURE.md` | decisions D1–D15, dataflows, Secure Core/Safe Edge, **LOCKED** scope |
 | Setup guide | `docs/guides/SETUP.md` | install/deploy (Omise · Cloudflare · OBS · `.env`) |
+| Quick start | `docs/guides/QUICKSTART.md` | 1-page install checklist (Thai), links into SETUP |
 | Testing guide | `docs/guides/TESTING.md` | `make verify` + manual checks |
 | Vibecode guide | `docs/guides/VIBECODE.md` | safely editing tip page + overlay |
 | Security audit | `docs/security/SECURITY-REVIEW.md` | pre-open-source audit (point-in-time) |
 | Security policy | `SECURITY.md` (root) | how to report a vulnerability |
 | Readme | `README.md` (root) | project landing + links |
+| Contributing | `CONTRIBUTING.md` (root) | PR ground rules (scope, core/ review, verify gate) |
+| Changelog | `CHANGELOG.md` (root) | per-release notes (update on every tag) |
+| User folder | `user/README.md` | customization surface — survives updates (D16) |
 | AI zone rules | `AGENTS.md` (root), `app/AGENTS.md`, `core/AGENTS.md` | edit-zone guidance |
 
 `reports/` is owned by a separate (user-simulating) agent — do not edit it.

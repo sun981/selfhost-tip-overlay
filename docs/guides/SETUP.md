@@ -1,6 +1,8 @@
 # คู่มือติดตั้ง Tip Overlay System
 
 > ทดสอบด้วย **test mode** ก่อนเสมอ ก่อนใช้ key จริง (ทั้ง Omise และ Stripe)
+>
+> อยากได้ฉบับย่อไว้กางคู่กัน → **[QUICKSTART.md](QUICKSTART.md)** (checklist 1 หน้า ลิงก์กลับมาทุกขั้น)
 
 ## ภาพรวม — ระบบนี้ทำงานยังไง
 

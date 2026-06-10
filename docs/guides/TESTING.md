@@ -110,6 +110,21 @@ Sound notes:
   `docker compose up -d --force-recreate backend`, check `docker compose logs backend` →
   it prints what's missing and exits. (Restore `.env` after.)
 
+### B5. user/ overrides + schema migration (since v0.2.0)
+- **Settings override:** `echo '{"message_max_length": 150}' > user/settings.json` →
+  `docker compose restart backend` → a 151-char message at `/api/charge` is rejected.
+  Remove the file + restart → cap is back to 200 (shipped default).
+- **Theme override:** create `user/web/theme.css` with an obvious rule (e.g.
+  `body { background: red !important; }`) → refresh the overlay browser tab →
+  visible immediately. `curl -I http://127.0.0.1:8080/user/theme.css` → 200 `text/css`;
+  after deleting the file → 404 (NOT a 200 HTML fallback).
+- **Sound override:** drop a WAV at `user/web/sounds/alert.wav` → fire the dev trigger →
+  your sound plays; delete it → shipped chime again.
+- **Migration safety:** `make verify` covers it (tests/test_migrations.py): fresh DB stamps
+  the latest `schema_version`, a v0.1.0 DB is adopted at baseline with data intact, a
+  pending migration writes a `tips.db.pre-migrate-v*` backup first, and a DB newer than
+  the build refuses to start.
+
 ---
 
 ## C. Status — verified vs not
