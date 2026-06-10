@@ -1,3 +1,7 @@
+# Fixed project name: container/volume/network names stay `tip-overlay-*` no matter
+# what the clone folder is called (compose otherwise derives names from the directory).
+name: tip-overlay
+
 services:
   backend:
     build:
@@ -84,7 +88,7 @@ services:
     restart: unless-stopped
 
   cloudflared:
-    image: cloudflare/cloudflared:2026.5.2@sha256:12ff5c6992a9863db4da270746af7c244bcaee49353039af8104268a18d6c4f0
+    image: cloudflare/cloudflared:2026.6.0@sha256:ba461b8aa9c042156dbd39c38657fe7431bafa063220eab8d5330a523863da9f
     command: tunnel run
     env_file: .env
     environment:

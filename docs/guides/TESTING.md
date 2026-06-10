@@ -52,7 +52,7 @@ docker compose ps          # backend healthy; overlay published on 127.0.0.1:808
 ```
 If `127.0.0.1:8080` is unreachable, confirm the overlay port is realized (must be non-empty):
 ```bash
-docker inspect donationselfhost-overlay-1 --format '{{json .NetworkSettings.Ports}}'
+docker inspect tip-overlay-overlay-1 --format '{{json .NetworkSettings.Ports}}'
 ```
 
 ### B1. Overlay loads in OBS
@@ -74,7 +74,7 @@ sed -i '' 's/^DEV_TEST_TRIGGER=.*/DEV_TEST_TRIGGER=1/' .env   # macOS; Linux: se
 docker compose up -d --build --force-recreate backend
 
 # fire (token REQUIRED). amount in satang (10000 = ฿100)
-curl -X POST "http://127.0.0.1:8080/api/dev/test-tip?token=YOUR_OVERLAY_TOKEN&name=Kongphob&amount=10000&message=hello"
+curl -X POST "http://127.0.0.1:8080/api/dev/test-tip?token=YOUR_OVERLAY_TOKEN&name=Somchai&amount=10000&message=hello"
 #   >>> expect a card to slide into the OBS source + a chime <<<
 
 # tier check: below ฿20 hides the message (proves process_tip runs)
