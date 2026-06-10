@@ -9,7 +9,7 @@ uvicorn[standard]==0.32.1
 httpx==0.28.1
 sqlalchemy==2.0.50
 python-multipart==0.0.32
-websockets==13.1
+websockets==16.0
 structlog==25.5.0
 pydantic==2.13.4
 pydantic-settings==2.14.1
