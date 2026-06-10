@@ -24,12 +24,12 @@ services:
   backend       — FastAPI: webhook receiver, /live-status, reconciliation, push (SSE — D4), ถือ skey/webhook secret + สร้าง charge ฝั่ง server (skey)
   frontend      — static tip page: เช็ค live-status, POST /api/charge → backend สร้าง source+charge (PromptPay, **ไม่ใช้ Omise.js** — D2), แสดง QR
   overlay       — static page เปิดเป็น OBS browser source: subscribe SSE, render (sanitize เสมอ) — **local เท่านั้น ไม่ผ่าน tunnel**
-  db            — **SQLite** (D5, schema portable → Postgres): tip records + idempotency + reconciliation cursor
+  db            — **SQLite ผ่าน volume บน backend** (D5, schema portable → Postgres): tip records + idempotency + reconciliation cursor — **ไม่มี db service แยก** (compose จริง = 4 services; service ที่ 5 จะเกิดเมื่อย้าย Postgres)
   cloudflared   — Cloudflare Tunnel (outbound only)
 ```
 
 - backend เชื่อม OBS WebSocket ผ่าน `host.docker.internal:4455`
-- endpoint สาธารณะผ่าน tunnel: tip page, webhook, overlay
+- endpoint สาธารณะผ่าน tunnel: tip page, webhook — **overlay = local เท่านั้น ไม่ผ่าน tunnel** (OBS เครื่องเดียวกับ backend, ดู ARCHITECTURE LOCKED)
 - endpoint ภายใน (`/live-status` ถ้าใช้ internal เท่านั้น) อย่า expose เกินจำเป็น
 
 ## 3. Flow หลัก
@@ -83,7 +83,7 @@ Omise เซ็น webhook ด้วย HMAC-SHA256 (เมื่อตั้ง
 ### 4.8 Network / cert
 - ออกผ่าน Cloudflare Tunnel เท่านั้น (cert จัดการโดย Cloudflare ไม่ต้องขอเอง)
 - ตั้ง SSL mode = Full, เปิด HSTS + Always Use HTTPS (เป็น manual step ใน guide ไม่ใช่โค้ด)
-- (optional) firewall allowlist Omise webhook IPs: `54.169.118.227`, `52.74.199.175`, `18.139.13.19` — เป็นชั้นกรองหยาบ อย่าพึ่งเป็นชั้นเดียว (IP อาจเปลี่ยน)
+- (optional) firewall allowlist Omise webhook IPs — ดูรายการล่าสุดจาก [Omise docs](https://docs.omise.co/api-webhooks) (อย่า hardcode ใน config/เอกสาร — IP เปลี่ยนได้) เป็นชั้นกรองหยาบ อย่าพึ่งเป็นชั้นเดียว
 
 ### 4.9 อื่นๆ
 - อย่า log secret / charge object เต็ม / stack trace ไป client
@@ -104,7 +104,7 @@ Omise เซ็น webhook ด้วย HMAC-SHA256 (เมื่อตั้ง
 - เหตุผล: Omise **ไม่การันตี retry** webhook ที่ fail → ต้องมี fallback นี้กัน tip หายตอนเครื่องดับ
 
 ## 7. Deliverables ที่อยากได้จาก PoC
-1. `docker-compose.yml` ครบ 5 service ตั้งค่า secure
+1. `docker-compose.yml` ครบทุก service ตั้งค่า secure (as-built = 4: backend, frontend, overlay, cloudflared — SQLite ผ่าน volume)
 2. `.env.example` (placeholder + comment เป็น inline doc), `.gitignore`, `.dockerignore`
 3. backend (FastAPI): webhook handler (signature verify ครบ 4.1–4.3), `/live-status`, **สร้าง charge ฝั่ง server (skey, PromptPay)**, reconciliation, push **SSE** (D4), startup secret validation, rate-limit key = `CF-Connecting-IP` (หลัง tunnel)
 4. frontend **tip page**: live gate + `POST /api/charge` (backend สร้าง charge ฝั่ง server, **ไม่ใช้ Omise.js** — D2) + แสดง QR + poll status + feedback หลังจ่าย. **min ฿20** (Omise hard limit), message cap 200

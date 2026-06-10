@@ -74,8 +74,8 @@ The single source of truth for scope is the **`[!success] LOCKED` block at the t
 ## Commands
 
 Entry points (per `docs/design/ARCHITECTURE.md` §13.3 / `docs/design/SPEC.md` §7):
-- `docker compose up -d` — run the full stack (backend, frontend, overlay, db, cloudflared)
-- `make verify` (a.k.a. `docker compose run tests`) — runs the SPEC §11 security invariants as a test suite; **green is the ship gate**. Runs `pip-audit` as a **hard gate** (self-bootstrapped `.audit-venv`, fails on any CVE) so green means "no known CVE in current pins"; image scan (`trivy`) is still planned. A broken security invariant must fail the build.
+- `docker compose up -d` — run the full stack (4 services: backend, frontend, overlay, cloudflared — SQLite via volume, no db service)
+- `make verify` (a.k.a. `docker compose run tests`) — runs the SPEC §11 security invariants as a test suite; **green is the ship gate**. Runs `pip-audit` as a **hard gate** (self-bootstrapped `.audit-venv`, fails on any CVE) so green means "no known CVE in current pins". Image scan = separate `make scan` (trivy, fails on fixable HIGH/CRITICAL, dated `.trivyignore`). A broken security invariant must fail the build.
 - Single test: `pytest tests/<file>::<test>` — runs inside the backend image (see `Makefile` `PYTEST_RUN`; `tests/` is mounted at runtime).
 
 Backend = Python + FastAPI + uvicorn + httpx; SQLite via SQLAlchemy (`DATABASE_URL`, portable to Postgres); frontend/overlay = vanilla static (no build step); OBS link via `obs-websocket` v5 on `host.docker.internal:4455` (never exposed).

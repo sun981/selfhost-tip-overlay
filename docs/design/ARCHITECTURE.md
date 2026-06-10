@@ -3,7 +3,7 @@
 เอกสารนี้ลงรายละเอียดสถาปัตยกรรมเชิงลึกของระบบเพื่อ review ก่อนเขียนโค้ด ครอบคลุม: tech stack + เหตุผล, โครงสร้างระบบ, data model, dataflow ทุกเส้น, security architecture, deployment topology, failure modes
 อ้างอิงข้อบังคับจาก [`SPEC.md`](./SPEC.md) — เอกสารนี้ไม่ override ข้อบังคับด้านความปลอดภัย แต่ทำให้มันเป็นรูปธรรม
 
-> สถานะ: **draft เพื่อ review** — decisions ที่ตัดสินใจไว้อยู่ใน §3 ถ้าไม่เห็นด้วยข้อไหน veto ได้ คำถามที่ยังเปิดอยู่ใน §14
+> สถานะ: **as-built (2026-06-10)** — PoC สร้างเสร็จ + ผ่าน pre-OSS audit แล้ว. decisions ใน §3 ถูก implement ครบ. §14 = คำถามจากรอบ review เดิม (ตอบครบแล้ว, LOCKED block ด้านบน supersede)
 
 > [!warning] Wording — เปลี่ยน "Donate" → "Tip" (policy risk) %%review claude 2026-06-03%%
 > เช็ค Omise [prohibited-businesses/thailand](https://docs.omise.co/prohibited-businesses/thailand) แล้ว:
@@ -16,7 +16,7 @@
 > [!success] LOCKED — review round 2 (2026-06-03) — ข้อสรุปสุดท้าย ใช้สร้าง PoC (supersede §14 + note กระจัดกระจาย)
 > **Naming:** product = **"Tip Overlay System"**. user-facing ทุกจุด (หน้า/ปุ่ม/README/ข้อความถึงผู้ให้/supporter) = **"Tip"** — ห้าม "Donate/Donation". **code identifier ทั้งหมดเปลี่ยนแล้ว** (`tips` table, `supporter_name`, `TipEvent`, `process_tip`) — โปรเจกต์เป็น open source ดังนั้น identifier ต้องสะอาดด้วย
 > **PoC scope (ทำรอบนี้):** PromptPay server-side ไม่ใช้ Omise.js (D2) · SQLite (D5) · **min ฿20** (Omise hard limit, §14 Q2) · overlay **local** (localhost, OBS เครื่องเดียวกับ backend, ไม่ผ่าน tunnel — §14 Q3) · ingress **path-based** (`/`=tip page, `/webhooks/omise` — §14 Q5) · **word-filter** + **amount-tiers** (ปรับจาก `settings.json`) + **alert sound** (static) · feedback หลังจ่าย = มี · config = **`settings.json` + CSS theme เท่านั้น ไม่มี config UI** (user custom เองผ่านไฟล์ — §14 Q8) · 🔧[rev 2026-06-05] **gateway เลือกได้ `PAYMENT_GATEWAY=omise|stripe`** (ทั้งคู่ PromptPay server-side ไม่ใช้ client JS; Stripe = adapter ที่ 2 ใน Secure Core — §9.5)
-> **Roadmap (ยังไม่ทำ):** card (+Omise.js+SRI) · TTS (provider=Google ตอน build) · **donor-pays-fee toggle** (§14 Q10) · goal bar / top-donor · config UI · moderation hold queue · remote OBS (seam พร้อมแล้ว §8.5)
+> **Roadmap (ยังไม่ทำ):** card (+Omise.js+SRI) · TTS (provider=Google ตอน build) · **donor-pays-fee toggle** (§14 Q10) · goal bar / top-tipper · config UI · moderation hold queue · remote OBS (seam พร้อมแล้ว §8.5)
 > **Defaults (ไม่ค้าน = ใช้เลย):** message cap 200 ตัว · privacy purge 90 วัน · recon ไม่ push ขึ้นจอถ้า `paid_at` เก่ากว่า ~10 นาทีก่อน startup (ยัง record เข้า DB)
 > **Build handoff:** PoC จะสร้างโดย session ใหม่ (Sonnet + advisor) ที่**ไม่มี chat history นี้** → docs ต้องครบในตัว. ลำดับสร้าง = SPEC §10. ค้าง: rename folder (manual step ดู handoff)
 
@@ -177,7 +177,7 @@ CREATE TABLE tips (
     status        TEXT NOT NULL,              -- pending | successful | failed | expired
     amount        INTEGER NOT NULL,           -- satang (1 THB = 100) เก็บตามที่ Omise ส่ง
     currency      TEXT NOT NULL DEFAULT 'thb',
-    donor_name    TEXT,                        -- จาก metadata (escape ตอน render เสมอ)
+    supporter_name TEXT,                       -- จาก metadata (escape ตอน render เสมอ)
     message       TEXT,                        -- จาก metadata (escape ตอน render เสมอ)
     source_type   TEXT,                        -- 'promptpay'
     created_at    TIMESTAMP NOT NULL,          -- ตอนเราสร้าง charge
@@ -212,9 +212,13 @@ CREATE TABLE recon_state (
 | GET | `/api/live-status` | `{live: bool}` จาก OBS | public |
 | POST | `/api/charge` | สร้าง source+charge (skey), เขียน metadata, คืน QR | public + **live gate** + validation |
 | GET | `/api/charge/{id}/status` | อ่าน status จาก **DB local** (ไม่ยิง Omise ทุก poll) — 🔧[rev] คืนแค่ `{status}` (+amount) **ไม่คืน name/message** กันใครรู้ charge_id อ่านข้อความ donor (P1#5) + rate-limit poll | public (รู้ id เท่านั้น) |
+| GET | `/api/charge/{id}/qr` | 🔧[as-built] **QR proxy ตาม D10** — backend ดึงรูปจาก gateway มา serve เอง → overlay/tip page CSP `img-src 'self'` | public (รู้ id เท่านั้น) |
 | GET | `/api/events/overlay?token=` | SSE stream tip ที่ verified แล้ว — 🔧[rev] emit `id: {event_seq}`; on reconnect อ่าน `Last-Event-ID` → replay เฉพาะ seq ใหม่กว่า (LIMIT N), fresh source (ไม่มี header) = start live ไม่ replay (P0#2) | **token** |
 | GET | `/api/tips/recent?after={seq}` | 🔧[rev] backfill gap แบบ manual (overlay/bot ดึงย้อนหลัง), token-gated, return เฉพาะ field overlay ใช้ (P0#2) | **token** |
-| POST | `/webhooks/omise` | verify sig → record → push | signature เท่านั้น (ไม่พึ่ง CORS) |
+| POST | `/api/tips/{id}/replay` | 🔧[as-built] manual re-push tip เดิมขึ้น overlay (streamer สั่งฉายซ้ำ) — ไม่แตะ money record | **token** |
+| POST | `/webhooks/omise`, `/webhooks/stripe` | verify sig → record → push — route ตาม `PAYMENT_GATEWAY` (§9.5); adapter ของ gateway ที่ไม่ได้เลือก = ไม่ mount | signature เท่านั้น (ไม่พึ่ง CORS) |
+| GET | `/health` | 🔧[as-built] liveness สำหรับ compose healthcheck — ไม่คืนข้อมูล tip/secret | public |
+| POST | `/api/dev/test-tip` | 🔧[as-built] **dev-only** ยิง test alert ผ่าน pipeline จริง (process_tip + SSE) **ข้าม payment/signature/DB** — mount เฉพาะ env `DEV_TEST_TRIGGER=1` (default ปิด → 404 ใน prod) | **token** (OVERLAY_TOKEN) + env flag |
 | GET | `/` (tip), `/overlay` | static pages | overlay ต้องมี token |
 
 **Validation ที่ `POST /charge`** (ก่อนสร้าง charge / เขียน metadata):
@@ -277,11 +281,12 @@ on backend start:
   1. lookback = recon_state.last_scan_at - buffer (เช่น -1 ชม.) หรือ default window ถ้าว่าง
   2. ─GET Omise charges list (created >= lookback, paginate)─▶ Omise
   3. แต่ละ charge ที่ status=='successful':
-       ป้อนเข้า pipeline เดียวกับ 8.3.h: record (status) + push **เฉพาะแถว pushed_at IS NULL** — 🔧[rev P2#10] **`ORDER BY paid_at`**; ของเก่ามาก (paid_at ก่อน startup เกิน threshold) = **record + mark pushed เงียบๆ ไม่ push ขึ้นจอ** (อยู่ใน history/top-donor ได้ แต่กัน burst ของเก่าทะลักจอตอน restart)
+       ป้อนเข้า pipeline เดียวกับ 8.3.h: record (status) + push **เฉพาะแถว pushed_at IS NULL** — 🔧[rev P2#10] **`ORDER BY paid_at`**; ของเก่ามาก (paid_at ก่อน startup เกิน threshold) = **record + mark pushed เงียบๆ ไม่ push ขึ้นจอ** (อยู่ใน history/top-tipper ได้ แต่กัน burst ของเก่าทะลักจอตอน restart)
        → re-push ของที่ค้าง (handler เคยตายกลางทาง) ได้, ของที่ push แล้วไม่ซ้ำ
   4. set recon_state.last_scan_at = now
 ```
 > cursor แค่ **bound ว่าย้อนหลังแค่ไหน** ไม่ใช่กลไกความถูกต้อง — idempotency คือกลไกความถูกต้อง ดังนั้นไม่ต้องแม่นระดับ paid-time (list API order by created ก็พอ)
+> ⚠️ **assumption ที่ buffer พึ่งอยู่**: query ด้วย `created >= lookback` → charge ที่*สร้าง*ก่อน window แต่เพิ่ง*จ่าย*ระหว่าง downtime จะหลุด scan ได้ ถ้า QR มีอายุยาวกว่า buffer. ปลอดภัยเพราะ PromptPay QR expire เร็วกว่า buffer 1 ชม. — **ถ้าใครปรับ QR expiry ยาวขึ้น ต้องขยาย buffer ตาม** (buffer ≥ QR expiry เสมอ)
 > เหตุผล: Omise ไม่การันตี retry webhook → fallback นี้กัน tip หายตอนเครื่องดับ
 
 ### 8.5 Overlay render (SPEC §4.5)
@@ -325,10 +330,10 @@ overlay page (OBS browser source) ─GET /api/events/overlay?token=─▶ SSE st
 ### 9.3 Donor privacy & data retention
 แยก 2 ชั้นให้ชัด:
 - **Financial PII** (เลขบัตร/บัญชีธนาคาร/ตัวตนผู้จ่าย) → **เราไม่เห็น/ไม่เก็บเลย Omise เป็น system of record** (ผลพลอยได้จาก never-custody + D2) — claim privacy ที่แข็งสุด
-- **alias + message** ที่ donor พิมพ์บนฟอร์ม → donor ตั้งใจให้ขึ้นจอ (public by intent) ไม่ใช่ตัวตนจริง **ต้อง persist** (overlay + top-donor + reconciliation อ่านกลับ) → จัดการด้วย:
+- **alias + message** ที่ donor พิมพ์บนฟอร์ม → donor ตั้งใจให้ขึ้นจอ (public by intent) ไม่ใช่ตัวตนจริง **ต้อง persist** (overlay + top-tipper + reconciliation อ่านกลับ) → จัดการด้วย:
   - **retention config**: auto-purge หลัง N วัน (default เช่น 90 วัน) + endpoint/CLI ลบเองได้
   - ไม่ log ข้อความ donor ที่ระดับปกติ (ดู §9.4)
-- ⚠️ tension: ถ้าอยาก max privacy (ไม่ persist message เลย) จะ**ทำ top-donor/history/bot ไม่ได้** — เป็น decision (open Q)
+- ⚠️ tension: ถ้าอยาก max privacy (ไม่ persist message เลย) จะ**ทำ top-tipper/history/bot ไม่ได้** — เป็น decision (open Q)
 
 ### 9.4 Logging policy (เป็น security เพราะ log รั่ว = ช่องโหว่)
 | Log ได้ | **ห้าม log เด็ดขาด** |
@@ -447,7 +452,7 @@ verified charge
   → OverlayEvent    (สิ่งที่ overlay/TTS บริโภค: {name, message, amount, tts_audio_url?, flagged?})
   → push SSE
 ```
-- **PoC**: 🔧[rev 2026-06-03] `process_tip` = **1 stage จริง = word-filter** (ไม่ใช่ passthrough อีกต่อไป — §14#6 ดันเข้า PoC). cap/charset ยังทำที่ §7. **ยังไม่ build stage *framework*** (list/registry) — มี stage เดียว hardcode ก่อน. stage พัง → fallback ตัด message (§8.3.h) P0#3
+- **PoC**: 🔧[as-built] `process_tip` = **2 stages จริง** — `app/stages/amount_tiers.py` + `app/stages/word_filter.py` (ลำดับ hardcode ใน `app/process_tip.py`). cap/charset ยังทำที่ §7. **ยังไม่ build stage *framework*** (list/registry). stage พัง → fallback ตัด message (§8.3.h) P0#3
 - **ทีหลัง**: เปลี่ยนเป็น list ของ stage เรียงกัน แต่ละ stage `(event) -> event | DROP | HOLD` เพิ่มได้โดยไม่แตะ webhook/overlay
 - กุญแจ: **contract ของ TipEvent + OverlayEvent ต้องเสถียร** — เผื่อ field `tts_audio_url`, `flagged` ไว้ตั้งแต่แรกแม้ยังไม่ใช้ → เพิ่มฟีเจอร์แล้ว overlay ไม่ break
 - ⚠️ **runtime safety (ไม่ใช่แค่ import direction)**: core เรียก stage *หลัง* commit เงิน (§8.3.h) + ห่อ try/except + timeout → **stage พัง = push base tip, เงินไม่หาย, ไม่ block**
@@ -485,10 +490,10 @@ flow: process stage → provider → backend cache audio → serve self-hosted
 - moderation hold ต้องมี queue table + endpoint อนุมัติ → roadmap
 
 ### 12.6 API-first → รองรับ future feature + bot (static ไม่จำกัดการโต)
-- frontend/overlay เป็น **static + ผู้บริโภค API** — feature ใหม่ (top-donor, แสดงสิทธิ/สถานะ) = endpoint ใหม่ + หน้า/widget ใหม่ ไม่ rewrite. หนักขึ้นค่อยเติม build step ทีหลัง (migrate)
+- frontend/overlay เป็น **static + ผู้บริโภค API** — feature ใหม่ (top-tipper, แสดงสิทธิ/สถานะ) = endpoint ใหม่ + หน้า/widget ใหม่ ไม่ rewrite. หนักขึ้นค่อยเติม build step ทีหลัง (migrate)
 - **bot integration seam**: contract ที่เสถียร 2 ตัวคือจุดต่อ bot — **SSE event stream** (bot subscribe tip realtime) + **read API** (`GET /api/tips` recent/top) → bot/ระบบอื่นดึงไปทำต่อได้
 - bot read API ใช้ **token แยก** (อ่านอย่างเดียว) ไม่ใช่ skey — PoC ยังไม่ build, แต่ออกแบบ event contract (§12.2) ให้ bot ใช้ได้ตั้งแต่ตอนนี้
-- top-donor/history **ต้อง persist tip** → โยง privacy §9.3 (เก็บ alias/message + retention)
+- top-tipper/history **ต้อง persist tip** → โยง privacy §9.3 (เก็บ alias/message + retention)
 
 ---
 
@@ -518,13 +523,15 @@ user เป็น streamer ไม่ใช่ coder → จะใช้ AI แ�
 ### 13.3 ของนุ่ม — steering (ช่วยเคสปกติ ไม่ใช่กำแพง)
 - **AI guidance files**: `AGENTS.md` / `CLAUDE.md` / `.cursorrules` ในrepo บอก AI: ไฟล์ไหน core ห้ามแตะ, แก้ได้ที่ไหน + **"แก้เสร็จรัน `make verify` ถ้าแดง = พัง security invariant ให้ revert"**
 - **bridge soft→loop**: ship เกณฑ์ SPEC §11 เป็น test suite รันได้ (`make verify` / `docker compose run tests`) → AGENTS.md ชี้ AI มารันอันนี้ → steering กลายเป็น loop ที่ AI เช็คเอง. test นี้ต้องมีอยู่แล้วเพื่อ §11 → cost เพิ่ม ≈ 0
-- 🔧[rev 2026-06-03 P1#4] **`make verify` += `pip-audit` + image scan (`trivy`)** → green = "logic ถูก **+ ไม่มี known CVE ใน pin วันนี้**" (verify เดิมเช็ค invariant ไม่เช็ค vuln — §1.1 freshness signal เลยจะมีฟันจริง). CVE ที่ยังไม่มี patch → `.audit-ignore` มี **reason + วันหมดอายุ** = decision ที่จงใจ ไม่ใช่ปิดตาเงียบ
+- 🔧[rev 2026-06-03 P1#4] **`make verify` += `pip-audit`**; image scan (`trivy`) 🔧[as-built] แยกเป็น **`make scan`** (fail บน fixable HIGH/CRITICAL + dated `.trivyignore`) → verify green = "logic ถูก **+ ไม่มี known CVE ใน pin วันนี้**" (verify เดิมเช็ค invariant ไม่เช็ค vuln — §1.1 freshness signal เลยจะมีฟันจริง). CVE ที่ยังไม่มี patch → `.audit-ignore` มี **reason + วันหมดอายุ** = decision ที่จงใจ ไม่ใช่ปิดตาเงียบ
 - ⚠️ ข้อจำกัด: พอ prompt ขัด ("tip ไม่ขึ้น แก้ที") AI อาจแตะ core อยู่ดี → นี่คือ steering ไม่ใช่ enforcement (ของจริงอยู่ §13.2)
 
 ### 13.4 จงใจไม่ทำ (over-engineer สำหรับ PoC)
 sandbox/container แต่ละ stage, per-stage capability system, เซ็น vibecode diff, RBAC — **ข้ามหมด**
 
 ### 13.5 Core isolation hook — บังคับถาม user ก่อนแก้ core (⚠️ build ขั้นสุดท้าย) (D13)
+
+> **สถานะ (2026-06-10): hook ยังไม่ติดตั้ง — เจตนา.** owner ต้องการแก้ `core/` ได้อยู่ระหว่างพัฒนา → ปัจจุบัน `core/` คุ้มครองด้วย convention (AGENTS.md + human-review) ไม่ใช่ hook. ติดตั้งเป็น step สุดท้ายก่อน/หลัง open-source ตามแผนเดิมด้านล่าง
 ยกระดับ §13.3 จาก steering → **enforcement ที่ชั้น AI-tool**:
 - **กลไก**: Claude Code **PreToolUse hook** ship ใน repo (`.claude/settings.json`) match `Edit|Write|MultiEdit` ที่ path ตรงกับ Secure Core → คืน `permissionDecision: "ask"` (หรือ `deny`) → **บังคับ user ยืนยันก่อนเสมอ แม้รันใน automode / bypass-permissions** + AGENTS.md บอก AI ว่า core ห้ามแตะ
 - แข็งกว่า AGENTS.md เพราะ block ที่ชั้น tool ไม่ใช่แค่ขอความร่วมมือ → ship ใน repo = ทุกคนที่ vibecode repo นี้ด้วย Claude Code โดน gate อัตโนมัติ
@@ -546,6 +553,8 @@ app/          ← Safe Edge (vibecode สบาย)
   stages/       process_tip stages (filter, tts)  ← register เข้า contracts/
   settings.json config-over-code
   AGENTS.md     "แก้ตรงนี้ได้ เสร็จแล้วรัน make verify"
+routes/       ← 🔧[as-built] FastAPI route layer — ชั้นบางๆ: webhook/charge route **delegate ลง core ทันที** (verify/charge logic อยู่ใน core ไม่อยู่ใน route), SSE/live-status เรียก app/. ถือเป็น **core-adjacent**: ไม่อยู่ใน hook path แต่แก้ webhook/charge route = ควร review เหมือน core
+main.py       ← 🔧[as-built] composition root: เลือก gateway ตาม PAYMENT_GATEWAY, mount routes, รัน startup self-test — core-adjacent เช่นกัน
 tests/        ← make verify (security invariants จาก SPEC §11)
 AGENTS.md / CLAUDE.md / .cursorrules   ← root: ชี้ทาง + กฎรวม
 ```
@@ -584,7 +593,7 @@ AGENTS.md / CLAUDE.md / .cursorrules   ← root: ชี้ทาง + กฎร�
    -ไม่แน่ใจว่าส่วนมากใช้อะไร แต่ขอ google
 8. **config surface**: เห็นด้วยไหมว่า config หลัก (amount/tier/สี/ข้อความ/banned-words) ควรอยู่ใน `settings.json` + CSS theme เดียว เพื่อให้ vibecode ไม่ต้องแตะ Python — มีอะไรอยากให้เป็น config เพิ่ม
    -อยากให้อิสระหน่อย เพราะว่าบางคนอาจต้องการ custom ได้เต็มที่ ทำ interface แยก?
-9. **privacy retention** (§9.3): persist alias+message + auto-purge 90 วัน (เพื่อให้มี top-donor/bot) — โอเคไหม หรืออยาก max-privacy ไม่ persist message (จะทำ top-donor/history ไม่ได้)? เลข purge กี่วัน?
+9. **privacy retention** (§9.3): persist alias+message + auto-purge 90 วัน (เพื่อให้มี top-tipper/bot) — โอเคไหม หรืออยาก max-privacy ไม่ persist message (จะทำ top-tipper/history ไม่ได้)? เลข purge กี่วัน?
    -แล้วแต่ user เนื่องจากข้อมูลปัจจุบันไม่ได้กระทบ PDPA ดังนั้นยังไงก็ได้
 10. **ใครรับภาระ fee** Omise (PromptPay 1.65%+VAT): หักจากยอด streamer (default) หรือบวกเพิ่มให้ donor จ่าย? กระทบ logic คำนวณ amount
     -หักจาก streamer เลย หรืออาจจะทำตัวเลือกให้ donor เลือกที่จะจ่าย fee ให้ได้ด้วยเพื่อจะได้ให้เงิน streamer เต็มจำนวน

@@ -4,8 +4,9 @@
 
 | Directory | Zone | Can vibecode? |
 |---|---|---|
-| `core/` | Secure Core | ❌ Ask user first — hook enforced |
+| `core/` | Secure Core | ❌ Ask user first — human-review-only (the PreToolUse hook from ARCHITECTURE §13.5 is **not installed yet**; this is convention, still binding) |
 | `contracts/` | Interfaces | ⚠️ Rarely changes — ask first |
+| `routes/` · `main.py` | Core-adjacent wiring | ⚠️ Thin glue; webhook/charge routes delegate into `core/` — treat edits like core, ask first |
 | `app/stages/` | Safe Edge | ✅ |
 | `app/tip/` | Safe Edge | ✅ |
 | `app/overlay/` | Safe Edge | ✅ |
@@ -30,7 +31,7 @@ If it goes red → revert. Green = security invariants pass.
 
 ## What NOT to touch
 
-- `core/` — signature verify, secret handling, idempotency. PreToolUse hook will ask for confirmation.
+- `core/` — signature verify, secret handling, idempotency. Human-review-only by convention (no enforcing hook yet — see ARCHITECTURE §13.5).
 - `contracts/events.py` — changing field names breaks core ↔ app. Ask first.
 - `.env` — never commit, never log
 

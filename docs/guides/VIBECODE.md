@@ -29,7 +29,7 @@ app/
 contracts/events.py          🟡 the field names overlay.js reads — rename = break. ASK FIRST.
 routes/                       🟡 API endpoints (charge / webhook / sse). backend logic.
 nginx/*.conf                  🟡 the CSP that constrains your HTML (see Rule 1).
-core/                         🔴 security: signature verify, secrets, idempotency. HOOK-PROTECTED.
+core/                         🔴 security: signature verify, secrets, idempotency. HUMAN-REVIEW-ONLY.
 .env                          🔴 secrets. never edit for styling. never commit.
 ```
 

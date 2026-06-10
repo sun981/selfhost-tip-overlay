@@ -10,4 +10,5 @@ If you are an AI assistant:
 3. Wait for explicit user approval
 4. After any change, run `make verify` — if it goes red, revert
 
-The PreToolUse hook in `.claude/settings.json` enforces this at the tool level.
+Note: the PreToolUse hook (ARCHITECTURE §13.5) that would enforce this at the tool level is
+**not installed yet** — this file is the active guard. The rule above is binding regardless.
