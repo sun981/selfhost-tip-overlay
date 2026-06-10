@@ -16,6 +16,7 @@ import time
 
 import pytest
 
+from core.payment.base import WebhookEvent
 from core.payment.omise import OmiseAdapter, ReplayError, SignatureError
 from tests.conftest import (
     TEST_SECRET_B64,
@@ -39,12 +40,14 @@ class TestSignatureVerification:
             omise_adapter.verify_webhook(raw_body, make_headers(ts_str, bad_sig))
 
     def test_good_signature_passes(self, omise_adapter: OmiseAdapter):
-        """Good signature with valid timestamp must parse and return dict."""
+        """Good signature with valid timestamp must verify + normalize to a WebhookEvent."""
         raw_body = b'{"key":"charge.complete","data":{"object":"charge","id":"chrg_1","status":"successful"}}'
         ts_str, sig = make_valid_signature(raw_body)
 
-        result = omise_adapter.verify_webhook(raw_body, make_headers(ts_str, sig))
-        assert result["key"] == "charge.complete"
+        event = omise_adapter.verify_webhook(raw_body, make_headers(ts_str, sig))
+        assert isinstance(event, WebhookEvent)
+        assert event.kind == "successful"
+        assert event.charge_id == "chrg_1"
 
     def test_tampered_body_rejected(self, omise_adapter: OmiseAdapter):
         """Signature valid for original body must fail on tampered body."""
@@ -63,14 +66,14 @@ class TestSignatureVerification:
         bad_sig = "b" * 64
 
         multi_sig_header = f"{bad_sig},{good_sig}"
-        result = omise_adapter.verify_webhook(
+        event = omise_adapter.verify_webhook(
             raw_body,
             {
                 "omise-signature-timestamp": ts_str,
                 "omise-signature": multi_sig_header,
             },
         )
-        assert isinstance(result, dict)
+        assert isinstance(event, WebhookEvent)  # one sig matched → verified, no raise
 
     def test_missing_sig_header_raises_not_500(self, omise_adapter: OmiseAdapter):
         """Missing headers must raise SignatureError (not crash to 500)."""
@@ -127,8 +130,8 @@ class TestReplayProtection:
         ts_minus_4min = str(int(time.time()) - 240)
         ts_str, sig = make_valid_signature(raw_body, ts_minus_4min)
 
-        result = omise_adapter.verify_webhook(raw_body, make_headers(ts_str, sig))
-        assert isinstance(result, dict)
+        event = omise_adapter.verify_webhook(raw_body, make_headers(ts_str, sig))
+        assert isinstance(event, WebhookEvent)  # within window → verified
 
 
 # ── §11 invariant 3: Idempotency — no double push ────────────────────────────
@@ -230,7 +233,11 @@ class TestIdempotency:
 class TestAmountFromCharge:
 
     def test_amount_from_charge_object(self, omise_adapter: OmiseAdapter):
-        """SPEC §4.4: Amount in verified payload (not from client input)."""
+        """SPEC §4.4: the full normalized event comes from the verified payload, not
+        client input. Asserts the whole set incl. paid_at + source_type — the parse
+        relocation those two fields aren't surfaced by the HTTP e2e test."""
+        from datetime import datetime, timezone
+
         charge_amount = 9999  # what Omise says
         raw_body = json.dumps({
             "key": "charge.complete",
@@ -241,14 +248,23 @@ class TestAmountFromCharge:
                 "amount": charge_amount,
                 "currency": "thb",
                 "metadata": {"supporter_name": "Test", "message": ""},
+                "paid_at": "2026-06-04T00:00:00Z",
+                "source": {"type": "promptpay"},
             }
         }).encode()
 
         ts_str, sig = make_valid_signature(raw_body)
-        result = omise_adapter.verify_webhook(raw_body, make_headers(ts_str, sig))
+        event = omise_adapter.verify_webhook(raw_body, make_headers(ts_str, sig))
 
-        # Amount from verified charge object, not from any client field
-        assert result["data"]["amount"] == charge_amount
+        # Everything normalized from the verified charge object, not any client field
+        assert event.kind == "successful"
+        assert event.charge_id == "chrg_amt_test"
+        assert event.amount == charge_amount
+        assert event.currency == "thb"
+        assert event.supporter_name == "Test"
+        assert event.message == ""
+        assert event.source_type == "promptpay"
+        assert event.paid_at == datetime(2026, 6, 4, 0, 0, 0, tzinfo=timezone.utc)
 
 
 # ── §11 invariant 5: XSS prevention ──────────────────────────────────────────
@@ -307,8 +323,6 @@ class TestSecretValidation:
 
     def test_cors_not_wildcard(self):
         """SPEC §4.7: CORS_ORIGIN must not be *."""
-        from core.security.secrets import _REQUIRED
-
         # Verify the check exists in validate() by checking the source
         import inspect
         from core.security import secrets as secrets_mod

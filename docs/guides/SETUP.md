@@ -47,6 +47,23 @@
 
 ---
 
+## (ทางเลือก) ใช้ Stripe แทน Omise
+
+ระบบรองรับ **Stripe** เป็น gateway ทางเลือก (`PAYMENT_GATEWAY=stripe` — ตัวช่วย `setup.command` จะถามให้เลือก). Stripe ก็ใช้ **PromptPay server-side** เหมือนกัน (ไม่ต้องมี Stripe.js) ค่าธรรมเนียม **1.65% (≈ Omise)**. บุคคลธรรมดาไทยสมัครได้ (บัตร ปชช. + บัญชีธนาคารไทย).
+
+1. สมัคร [dashboard.stripe.com](https://dashboard.stripe.com) → เปิด **Test mode** (มุมขวาบน)
+2. **Settings → Payment methods** → เปิด **PromptPay**
+3. **Developers → API keys** → คัดลอก **Secret key** (`sk_test_...`)
+4. **Developers → Webhooks → + Add endpoint**:
+   - Endpoint URL: `https://yourdomain.com/webhooks/stripe`
+   - Events: `payment_intent.succeeded`, `payment_intent.payment_failed`, `payment_intent.canceled`
+   - กด **Add** → คัดลอก **Signing secret** (`whsec_...`)
+5. ใส่ใน `.env` (หรือให้ wizard กรอก): `PAYMENT_GATEWAY=stripe` · `STRIPE_SECRET_KEY=sk_...` · `STRIPE_WEBHOOK_SECRET=whsec_...`
+
+> ที่เหลือ (Cloudflare · OBS · รัน) เหมือนกันหมด — ข้ามไปขั้นตอนที่ 2 ได้เลย.
+
+---
+
 ## ขั้นตอนที่ 2 — ตั้งค่า Cloudflare Tunnel
 
 Cloudflare Tunnel ทำให้ Omise ส่ง webhook มาถึงเครื่องคุณได้ โดยไม่ต้องเปิด port

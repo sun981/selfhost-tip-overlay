@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 from contracts.events import TipEvent, OverlayEvent
 from core.db.operations import DBOps
-from core.payment.omise import OmiseAdapter
+from core.payment.base import PaymentGateway
 from core.security.log import safe_event
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ def set_old_threshold(minutes: int) -> None:
 
 async def run(
     db: DBOps,
-    adapter: OmiseAdapter,
+    adapter: PaymentGateway,
     broadcaster,
     process_tip,
     startup_time: datetime,

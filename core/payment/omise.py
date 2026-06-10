@@ -11,43 +11,21 @@ import hashlib
 import hmac
 import json
 import time
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Mapping
 
 import httpx
 
-
-# ── Exceptions ──────────────────────────────────────────────────────────────
-
-class SignatureError(Exception):
-    """Webhook signature did not match — caller must return 401."""
-
-
-class ReplayError(Exception):
-    """Webhook timestamp outside replay window — caller must return 401."""
-
-
-# ── Result types ──────────────────────────────────────────────────────────────
-
-@dataclass
-class ChargeResult:
-    charge_id: str
-    qr_download_uri: str
-    status: str
-    amount: int      # satang
-    currency: str
-
-
-@dataclass
-class ChargeData:
-    charge_id: str
-    amount: int      # satang
-    currency: str
-    status: str
-    metadata: dict[str, Any]
-    paid_at: datetime | None
-    source_type: str
+# Shared, gateway-neutral types live in base.py. Re-exported here so existing
+# imports (`from core.payment.omise import SignatureError`, ChargeData, …) keep
+# working unchanged.
+from core.payment.base import (  # noqa: F401  (intentional re-export)
+    ChargeData,
+    ChargeResult,
+    ReplayError,
+    SignatureError,
+    WebhookEvent,
+)
 
 
 # ── Adapter ──────────────────────────────────────────────────────────────────
@@ -74,16 +52,23 @@ class OmiseAdapter:
 
     # ── Webhook verification (SPEC §4.1, §4.2) ─────────────────────────────
 
-    def verify_webhook(self, raw_body: bytes, headers: Mapping[str, str]) -> dict:
+    def verify_webhook(self, raw_body: bytes, headers: Mapping[str, str]) -> WebhookEvent:
         """
-        Verify Omise webhook signature and replay window.
+        Verify the Omise signature + replay window, then normalize the payload to a
+        gateway-neutral WebhookEvent (ARCHITECTURE §9.5). Raises SignatureError /
+        ReplayError (→ 401) on failure. The handler branches on WebhookEvent.kind
+        and never sees the Omise payload shape.
+        """
+        payload = self._verify_signature(raw_body, headers)
+        return self._parse_event(payload)
 
-        Accepts Starlette Headers (case-insensitive) or plain dict with lowercased keys.
-        Returns parsed JSON dict on success.
-        Raises SignatureError (→ 401) or ReplayError (→ 401) on failure.
+    def _verify_signature(self, raw_body: bytes, headers: Mapping[str, str]) -> dict:
+        """
+        Signature + replay verification ONLY (SPEC §4.1, §4.2). Byte-exact, never
+        re-serializes the body. Returns the parsed JSON payload on success.
 
-        DOES NOT route on event type — that's the handler's job.
-        A valid sig on charge.create / refund.* must return 200 from the handler.
+        Separate method so the security-critical bytes stay isolated from payload
+        parsing (which differs per gateway).
         """
         # --- Header extraction (missing or non-numeric → clean 401, not 500) ---
         ts_str = headers.get("omise-signature-timestamp")
@@ -119,6 +104,44 @@ class OmiseAdapter:
             raise SignatureError("Webhook signature mismatch")
 
         return json.loads(raw_body)
+
+    @staticmethod
+    def _parse_event(payload: dict) -> WebhookEvent:
+        """Map a verified Omise payload → gateway-neutral WebhookEvent (was in routes/webhook.py)."""
+        if payload.get("key") != "charge.complete":
+            return WebhookEvent(kind="ignored")
+
+        charge = payload.get("data", {})
+        if charge.get("object") != "charge":
+            return WebhookEvent(kind="ignored")
+
+        charge_id = charge.get("id", "")
+        status = charge.get("status", "")
+
+        if status == "successful":
+            metadata = charge.get("metadata") or {}
+            paid_at_str = charge.get("paid_at")
+            paid_at = (
+                datetime.fromisoformat(paid_at_str.replace("Z", "+00:00"))
+                if paid_at_str
+                else None
+            )
+            return WebhookEvent(
+                kind="successful",
+                charge_id=charge_id,
+                amount=int(charge.get("amount", 0)),
+                currency=charge.get("currency", "thb"),
+                supporter_name=str(metadata.get("supporter_name", ""))[:50],
+                message=str(metadata.get("message", ""))[:200],
+                source_type=charge.get("source", {}).get("type", "promptpay"),
+                paid_at=paid_at,
+            )
+
+        if status in ("failed", "expired"):
+            return WebhookEvent(kind=status, charge_id=charge_id)
+
+        # charge.complete with another status (e.g. still pending) → ignore, return 200
+        return WebhookEvent(kind="ignored", charge_id=charge_id)
 
     # ── Charge creation (SPEC §3, D2) ──────────────────────────────────────
 

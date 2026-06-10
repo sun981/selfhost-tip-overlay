@@ -119,11 +119,32 @@ fi
 
 # ── collect values ───────────────────────────────────────────────────────────
 
-prompt_required "Omise Secret Key" "skey_test_... (ทดสอบ) หรือ skey_live_... — จาก Omise dashboard → Settings → Keys"
-V_SKEY="$REPLY_VAL"
+# Gateway choice first — decides which secrets we ask for.
+say ""
+say "เลือก payment gateway (ทั้งคู่ใช้ PromptPay server-side):"
+say "  1) Omise   — ค่าธรรมเนียม PromptPay 1.65% +VAT"
+say "  2) Stripe  — ค่าธรรมเนียม PromptPay 1.65% (VAT ตามสถานะภาษีของบัญชี) + ฿10/refund"
+while :; do
+  printf '> เลือก [1/2] (default 1): ' >&2
+  IFS= read -r g || g=""
+  case "$(lower "$g")" in
+    ""|1|omise) V_GATEWAY="omise"; break ;;
+    2|stripe)   V_GATEWAY="stripe"; break ;;
+    *) warn "พิมพ์ 1 หรือ 2" ;;
+  esac
+done
 
-prompt_required "Omise Webhook Secret" "สตริงยาวลงท้าย == — จาก Developers → Webhooks → Show secret"
-V_WHSEC="$REPLY_VAL"
+if [ "$V_GATEWAY" = "stripe" ]; then
+  prompt_required "Stripe Secret Key" "sk_test_... หรือ sk_live_... — dashboard.stripe.com → Developers → API keys"
+  V_STRIPE_KEY="$REPLY_VAL"
+  prompt_required "Stripe Webhook Secret" "whsec_... — Developers → Webhooks → (endpoint) → Signing secret"
+  V_STRIPE_WH="$REPLY_VAL"
+else
+  prompt_required "Omise Secret Key" "skey_test_... (ทดสอบ) หรือ skey_live_... — Omise dashboard → Settings → Keys"
+  V_SKEY="$REPLY_VAL"
+  prompt_required "Omise Webhook Secret" "สตริงยาวลงท้าย == — Developers → Webhooks → Show secret"
+  V_WHSEC="$REPLY_VAL"
+fi
 
 prompt_required "OBS WebSocket Password" "ที่ตั้งใน OBS → Tools → WebSocket Server Settings"
 V_OBSPW="$REPLY_VAL"
@@ -151,8 +172,15 @@ fi
 TMP="$ENV_FILE.tmp.$$"
 while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in
-    OMISE_SECRET_KEY=*)        printf 'OMISE_SECRET_KEY=%s\n' "$V_SKEY" ;;
-    OMISE_WEBHOOK_SECRET=*)    printf 'OMISE_WEBHOOK_SECRET=%s\n' "$V_WHSEC" ;;
+    PAYMENT_GATEWAY=*)         printf 'PAYMENT_GATEWAY=%s\n' "$V_GATEWAY" ;;
+    OMISE_SECRET_KEY=*)
+      if [ -n "${V_SKEY:-}" ]; then printf 'OMISE_SECRET_KEY=%s\n' "$V_SKEY"; else printf '%s\n' "$line"; fi ;;
+    OMISE_WEBHOOK_SECRET=*)
+      if [ -n "${V_WHSEC:-}" ]; then printf 'OMISE_WEBHOOK_SECRET=%s\n' "$V_WHSEC"; else printf '%s\n' "$line"; fi ;;
+    STRIPE_SECRET_KEY=*)
+      if [ -n "${V_STRIPE_KEY:-}" ]; then printf 'STRIPE_SECRET_KEY=%s\n' "$V_STRIPE_KEY"; else printf '%s\n' "$line"; fi ;;
+    STRIPE_WEBHOOK_SECRET=*)
+      if [ -n "${V_STRIPE_WH:-}" ]; then printf 'STRIPE_WEBHOOK_SECRET=%s\n' "$V_STRIPE_WH"; else printf '%s\n' "$line"; fi ;;
     OBS_WS_PASSWORD=*)         printf 'OBS_WS_PASSWORD=%s\n' "$V_OBSPW" ;;
     CORS_ORIGIN=*)             printf 'CORS_ORIGIN=%s\n' "$V_CORS" ;;
     OVERLAY_TOKEN=*)           printf 'OVERLAY_TOKEN=%s\n' "$V_TOKEN" ;;

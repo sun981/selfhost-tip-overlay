@@ -60,11 +60,20 @@ async def lifespan(app: FastAPI):
     init_db(engine)
     db = DBOps(engine)
 
-    # Init Omise adapter (Secure Core)
-    omise = OmiseAdapter(
-        secret_key=secrets.get("OMISE_SECRET_KEY"),
-        webhook_secret_b64=secrets.get("OMISE_WEBHOOK_SECRET"),
-    )
+    # Init payment gateway adapter (Secure Core) — selected by PAYMENT_GATEWAY.
+    # if/else over two reviewed adapters, not a registry (seam, not framework).
+    gateway_name = os.environ.get("PAYMENT_GATEWAY", "omise").strip().lower()
+    if gateway_name == "stripe":
+        from core.payment.stripe import StripeAdapter
+        gateway = StripeAdapter(
+            secret_key=secrets.get("STRIPE_SECRET_KEY"),
+            webhook_secret=secrets.get("STRIPE_WEBHOOK_SECRET"),
+        )
+    else:
+        gateway = OmiseAdapter(
+            secret_key=secrets.get("OMISE_SECRET_KEY"),
+            webhook_secret_b64=secrets.get("OMISE_WEBHOOK_SECRET"),
+        )
 
     # process_tip (Safe Edge — loaded here to avoid core importing app)
     from app.process_tip import process_tip
@@ -73,8 +82,8 @@ async def lifespan(app: FastAPI):
     old_threshold = SETTINGS.get("recon_old_threshold_minutes", 10)
     reconciliation.set_old_threshold(old_threshold)
 
-    # Wire state
-    app.state.omise = omise
+    # Wire state — `gateway` is the active PaymentGateway adapter (selected above).
+    app.state.gateway = gateway
     app.state.db = db
     app.state.broadcaster = sse_broadcaster.broadcast
     app.state.process_tip = process_tip
@@ -85,7 +94,7 @@ async def lifespan(app: FastAPI):
     asyncio.create_task(
         reconciliation.run(
             db=db,
-            adapter=omise,
+            adapter=gateway,
             broadcaster=sse_broadcaster.broadcast,
             process_tip=process_tip,
             startup_time=startup_time,

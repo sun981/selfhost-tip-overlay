@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from contracts.events import TipEvent, OverlayEvent
-from core.payment.omise import OmiseAdapter, ReplayError, SignatureError
+from core.payment.base import PaymentGateway, ReplayError, SignatureError
 from core.security.log import safe_event
 
 logger = logging.getLogger(__name__)
@@ -24,70 +24,60 @@ router = APIRouter()
 # NOTE: webhook is intentionally NOT rate-limited via slowapi. It is already gated by
 # signature verification (cheap 401s), and any slowapi wrapper here risks the raw-body
 # read (SPEC §4.1). Rate limiting is applied at POST /api/charge — the real exposure.
+# Both paths hit the same gateway-neutral handler; the active gateway (app.state.gateway)
+# decides which verifies. One provider is configured per deploy, so the unused path simply
+# 401s anything sent to it. Omise dashboard → /webhooks/omise, Stripe dashboard → /webhooks/stripe.
 @router.post("/webhooks/omise", status_code=200)
+@router.post("/webhooks/stripe", status_code=200)
 async def receive_webhook(request: Request) -> Response:
-    adapter: OmiseAdapter = request.app.state.omise
+    gateway: PaymentGateway = request.app.state.gateway
     db = request.app.state.db
 
     # Read raw body BEFORE any parsing (SPEC §4.1 — never re-serialize)
     raw_body = await request.body()
 
-    # Verify signature — 401 on failure
+    # Verify signature + normalize to a gateway-neutral event — 401 on failure.
+    # All provider-specific payload parsing lives in the adapter (ARCHITECTURE §9.5).
     try:
-        payload = adapter.verify_webhook(raw_body, request.headers)
+        event = gateway.verify_webhook(raw_body, request.headers)
     except (SignatureError, ReplayError) as e:
         logger.warning("Webhook rejected: %s", str(e))
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    # Route on event type — valid sig on other events (charge.create, refund.*) → 200
-    if payload.get("key") != "charge.complete":
-        return Response(status_code=200)
-
-    charge = payload.get("data", {})
-    if charge.get("object") != "charge":
-        return Response(status_code=200)
-
-    charge_id = charge.get("id", "")
-    charge_status = charge.get("status", "")
-
-    if charge_status == "successful":
-        # Extract from verified charge object — NEVER from client (SPEC §4.4)
-        amount = int(charge.get("amount", 0))
-        currency = charge.get("currency", "thb")
-        metadata = charge.get("metadata") or {}
-        supporter_name = str(metadata.get("supporter_name", ""))[:50]
-        message = str(metadata.get("message", ""))[:200]
-        source_type = charge.get("source", {}).get("type", "promptpay")
-
-        paid_at_str = charge.get("paid_at")
-        paid_at = (
-            datetime.fromisoformat(paid_at_str.replace("Z", "+00:00"))
-            if paid_at_str
-            else datetime.now(timezone.utc)
-        )
+    # Amount/name/message come from the verified event only — never the client (SPEC §4.4)
+    if event.kind == "successful":
+        paid_at = event.paid_at or datetime.now(timezone.utc)
 
         # [record] Commit money FIRST — always, before pushing (ARCHITECTURE §8.3.h)
         db.record_successful(
-            charge_id=charge_id,
-            amount=amount,
-            currency=currency,
-            supporter_name=supporter_name,
-            message=message,
-            source_type=source_type,
+            charge_id=event.charge_id,
+            amount=event.amount,
+            currency=event.currency,
+            supporter_name=event.supporter_name,
+            message=event.message,
+            source_type=event.source_type,
             paid_at=paid_at,
         )
         logger.info(
             "Recorded: %s",
-            safe_event("charge_recorded", charge_id, status="successful", amount=amount),
+            safe_event("charge_recorded", event.charge_id, status="successful", amount=event.amount),
         )
 
         # [push] Separate key: pushed_at IS NULL (ARCHITECTURE §6)
-        await _push_tip(request, charge_id, amount, currency, supporter_name, message, paid_at, source_type)
+        await _push_tip(
+            request, event.charge_id, event.amount, event.currency,
+            event.supporter_name, event.message, paid_at, event.source_type,
+        )
 
-    elif charge_status in ("failed", "expired"):
-        db.update_status(charge_id, charge_status)
+    elif event.kind in ("failed", "expired"):
+        db.update_status(event.charge_id, event.kind)
 
-    # Always 200 for verified events (prevents Omise retry on dup)
+    # QR is useless once the charge reaches a terminal state — evict so the
+    # in-memory cache doesn't grow one entry per charge until restart.
+    if event.kind in ("successful", "failed", "expired"):
+        request.app.state.qr_cache.pop(event.charge_id, None)
+
+    # Always 200 for verified events (ignored kinds too) — prevents gateway retry on dup
     return Response(status_code=200)
 
 

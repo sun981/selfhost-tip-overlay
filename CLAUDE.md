@@ -45,6 +45,7 @@ Self-host **streamer tip overlay** that replaces TipMe (shut down). Donor pays v
    - webhook secret is **base64 → decode before use** as HMAC key; HMAC-SHA256 → hex
    - `Omise-Signature` may carry **comma-separated sigs** (24h rotation) → loop, pass if any matches
    - **`hmac.compare_digest` only**, never `==`; reject (401) if none match; replay window ±5 min on timestamp
+   - **Gateway is selectable** (`PAYMENT_GATEWAY=omise|stripe`, since 2026-06-05). Both adapters are Secure Core behind `core/payment/base.py` `PaymentGateway` (→ `WebhookEvent`). The above is **Omise's** scheme. **Stripe** (`core/payment/stripe.py`) keeps the same invariants (compare_digest, replay, 401) but differs: header `Stripe-Signature: t=,v1=` (multiple v1 on rotation), secret `whsec_` used **as-is — NOT base64-decoded**, signed = `<t>.<raw_body>`, events `payment_intent.{succeeded,payment_failed,canceled}`. Stripe PromptPay also requires `billing_details[email]` (adapter uses a placeholder). `secrets.validate` + the startup self-test bind to the selected gateway.
 
 3. **Idempotency = record money ≠ push overlay** (two separate keys). `charge_id` PK guards the money record; `pushed_at IS NULL` guards the overlay push. Never use the status flip as the push retry key — an edge-stage crash after the flip would silently skip re-push (money recorded, never shown).
 
