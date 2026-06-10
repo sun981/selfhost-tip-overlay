@@ -1,25 +1,37 @@
 # Tip Overlay System
 
 Self-hosted **streamer tip overlay** — a fork-and-own replacement for TipMe. A supporter pays
-via **Omise PromptPay** → webhook → signature-verified → pushed to an **OBS browser-source
-overlay**. Single machine, `docker compose`, exposed through a **Cloudflare Tunnel** (outbound
-only, no inbound port).
+via **PromptPay** (through **Omise or Stripe** — pick one with `PAYMENT_GATEWAY`) → webhook →
+signature-verified → pushed to an **OBS browser-source overlay**. Single machine,
+`docker compose`, exposed through a **Cloudflare Tunnel** (outbound only, no inbound port).
 
-**Never-custody:** money flows supporter → Omise → the streamer's own Omise account. The system
-never holds, transfers, or stores funds, and stores no card data.
+**Never-custody:** money flows supporter → your payment gateway (Omise/Stripe) → your own
+gateway account. The system never holds, transfers, or stores funds, and stores no card data.
 
 > Naming note: it's a **"Tip"** system, not "Donation" — user-facing text *and* code identifiers
 > say Tip/Supporter (Omise prohibits "donations"). Keep it that way.
 
 ## Status
 
-PoC is **built and runs**. Security gate (`make verify`) is green: 32 tests + a hard
+PoC is **built and runs**. Security gate (`make verify`) is green: 47 tests + a hard
 `pip-audit` CVE check + the `core/`-doesn't-import-`app/` guard.
+
+## Fees & disclaimer
+
+- **This system takes 0%.** No platform cut, no middleman holding funds.
+- You still pay your **gateway's own fee** — Thai PromptPay is **1.65%** on both Omise and
+  Stripe (VAT on the fee per your gateway's terms and your tax status). By default the fee
+  comes out of what the streamer receives.
+- **MIT licensed, provided as-is** (see [LICENSE](LICENSE)). This is a **reference
+  implementation, not a maintained service** — you own the security of your fork
+  (`make verify` is your gate after any change). The deployer is solely responsible for
+  gateway KYC/onboarding, taxes, and compliance with their gateway's terms of service.
 
 ## Get started
 
-**macOS — one click:** double-click **`setup.command`**. It asks for your Omise keys,
-OBS WebSocket password, and domain; generates a secure overlay token; writes `.env`
+**macOS — one click:** double-click **`setup.command`**. It asks which gateway you use
+(Omise or Stripe) and for its keys, OBS WebSocket password, and domain; generates a
+secure overlay token; writes `.env`
 (`chmod 600`); prints the exact OBS browser-source URL; and offers to start the stack.
 (If a downloaded `.command` is blocked, right-click → **Open**, or run `bash scripts/setup.sh`.)
 

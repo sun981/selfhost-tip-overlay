@@ -17,16 +17,18 @@ disclosure window before going public.
 ## What this project is (scope context)
 
 A **self-hosted, single-machine** streamer tip overlay. It is **never-custody**: money flows
-donor → Omise → the streamer's own Omise account. The system never holds, transfers, or
-stores funds, and stores no card data. Each deployment is one operator's own box behind a
-Cloudflare Tunnel (outbound only, no inbound port).
+supporter → the payment gateway (Omise or Stripe, selected by `PAYMENT_GATEWAY`) → the
+streamer's own gateway account. The system never holds, transfers, or stores funds, and
+stores no card data. Each deployment is one operator's own box behind a Cloudflare Tunnel
+(outbound only, no inbound port).
 
 The highest-value invariants (see `docs/design/SPEC.md` §4, `docs/design/ARCHITECTURE.md` §9) are:
-- Omise webhook signature verification (`core/payment/omise.py`)
+- webhook signature verification of the active gateway (`core/payment/omise.py`,
+  `core/payment/stripe.py`, behind `core/payment/base.py`)
 - "record money before pushing overlay" two-key idempotency (`core/db/operations.py`)
 - amount taken only from the verified charge, never the client
 - secrets never logged; startup refuses on missing/placeholder secrets
-- server-set CSP + `textContent` rendering (no XSS from donor name/message)
+- server-set CSP + `textContent` rendering (no XSS from supporter name/message)
 
 ### In scope
 - The webhook / charge / idempotency / reconciliation money path (`core/`, `routes/`)
@@ -36,7 +38,7 @@ The highest-value invariants (see `docs/design/SPEC.md` §4, `docs/design/ARCHIT
 
 ### Out of scope
 - Issues that require an attacker to already control the host or the operator's `.env`
-- Vulnerabilities in Omise, Cloudflare, OBS, or Docker themselves (report upstream)
+- Vulnerabilities in Omise, Stripe, Cloudflare, OBS, or Docker themselves (report upstream)
 - A self-hoster's own misconfiguration that deviates from the documented setup (e.g.
   exposing the origin without the Cloudflare Tunnel, committing their `.env`, or enabling
   `DEV_TEST_TRIGGER=1` in production) — but reports that the **docs/defaults invite** such
@@ -49,3 +51,10 @@ The highest-value invariants (see `docs/design/SPEC.md` §4, `docs/design/ARCHIT
 - Keep dependencies current — `make verify` runs a hard `pip-audit` CVE gate; a green build
   means no known CVE in the current pins.
 - Leave `DEV_TEST_TRIGGER=0` in production (it bypasses payment + signature verification).
+
+## Freshness
+
+This is a fork-and-own reference implementation, **not a maintained service**. Dependencies
+pinned and last full security review: **2026-06** (see `docs/security/SECURITY-REVIEW.md`).
+If you fork later than that: bump pins, run `make verify` (hard `pip-audit` CVE gate) and
+`make scan`, and only trust a green build — you own the security of your fork.
