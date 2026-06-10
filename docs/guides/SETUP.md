@@ -193,7 +193,7 @@ DEBUG=false
 3. ตั้งชื่อ: `Tip Overlay`
 4. **URL**: `http://localhost:8080/index.html?token=ใส่ OVERLAY_TOKEN ที่ตั้งใน .env`
 
-   ตัวอย่าง: `http://localhost:8080/index.html?token=abc123xyz456`
+   ตัวอย่าง: `http://localhost:8080/index.html?token=YOUR_OVERLAY_TOKEN`
 
 5. Width: `1920` · Height: `1080`
 6. ✅ **Shutdown source when not visible**

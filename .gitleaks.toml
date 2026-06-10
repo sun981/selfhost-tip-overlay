@@ -1,0 +1,12 @@
+# Gitleaks config — extends the default ruleset.
+# The scheduled CI scan covers full git history, so doc placeholders that ever
+# existed must be allowlisted here (editing the doc alone can't fix history).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documentation placeholder values — not real secrets"
+regexes = [
+  # docs/guides/SETUP.md overlay-URL example token (placeholder, never a real OVERLAY_TOKEN)
+  '''token=abc123xyz456''',
+]
