@@ -4,7 +4,7 @@
 # "not on our exposure path" belongs here. Anything we can fix ourselves (our deps,
 # our Dockerfile) must be fixed, not ignored. Re-check each entry when the vendor
 # ships a rebuilt image; delete the line once the pinned digest is clean.
-# Last reviewed: 2026-06-04.
+# Last reviewed: 2026-06-10.
 
 # nginx:1.30.2-alpine — libxml2 DoS via crafted XSD-validated document.
 # Fixed in alpine pkg 2.13.9-r1; no current nginx alpine image has rebuilt with it yet
@@ -13,8 +13,16 @@
 # so libxml2's XSD validator is never invoked. Remove when nginx alpine rebuilds.
 CVE-2026-6732
 
-# cloudflare/cloudflared:2026.5.2 — HIGH in transitive google.golang.org/grpc.
-# Fixed in grpc 1.79.3; cloudflared 2026.5.2 still vendors 1.79.2. Third-party binary we
-# do not build — only Cloudflare can ship the rebuild (watch for >2026.5.2). The connector
-# speaks QUIC/HTTP2 to the edge; this is an internal gRPC dep. Remove when cloudflared bumps.
+# cloudflare/cloudflared:2026.6.0 — CRITICAL in transitive google.golang.org/grpc.
+# Fixed in grpc 1.79.3; cloudflared 2026.6.0 STILL vendors 1.79.2 (checked 2026-06-10).
+# Third-party binary we do not build — only Cloudflare can ship the rebuild. The
+# connector speaks QUIC/HTTP2 outbound to the edge; the vulnerable grpc authz path
+# validation is not an inbound surface here. Re-check on every cloudflared bump.
 CVE-2026-33186
+
+# cloudflare/cloudflared:2026.6.0 — HIGH in debian libssl3t64 (OpenSSL PKCS7_verify
+# heap UAF). Status "affected": NO fixed debian package exists yet (2026-06-10), so no
+# image rebuild can clear it — nothing for us to bump. Not on our path: cloudflared's
+# tunnel TLS is Go crypto/tls, not the system OpenSSL; PKCS7_verify is not invoked by
+# the connector. Re-check when debian ships a fix, then wait for the image rebuild.
+CVE-2026-45447

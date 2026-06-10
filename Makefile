@@ -33,11 +33,14 @@ verify: lint-imports
 	python3 tools/check_imports.py
 	@echo "=== All checks passed ==="
 
+# KEEP IN SYNC: these pins must mirror Dockerfile.backend (python) and
+# docker-compose.yml (nginx, cloudflared) — a stale pin here means the gate
+# scans an image we no longer ship (drift caught 2026-06-10).
 scan:
 	@echo "=== Scanning container images for fixable HIGH/CRITICAL CVEs ==="
-	$(TRIVY_RUN) python:3.12.13-slim@sha256:090ba77e2958f6af52a5341f788b50b032dd4ca28377d2893dcf1ecbdfdfe203
+	$(TRIVY_RUN) python:3.14.5-slim@sha256:c845af9399020c7e562969a13689e929074a10fd057acd1b1fad06a2fb068e97
 	$(TRIVY_RUN) nginx:1.30.2-alpine@sha256:5f979dcfed4ce6461873f087e8c980d6e29b084b9e8776d9704a7e989b5f4898
-	$(TRIVY_RUN) cloudflare/cloudflared:2026.5.2@sha256:12ff5c6992a9863db4da270746af7c244bcaee49353039af8104268a18d6c4f0
+	$(TRIVY_RUN) cloudflare/cloudflared:2026.6.0@sha256:ba461b8aa9c042156dbd39c38657fe7431bafa063220eab8d5330a523863da9f
 	@echo "=== Image scan clean (no fixable HIGH/CRITICAL) ==="
 
 lint-imports:
