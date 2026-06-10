@@ -29,6 +29,10 @@ PoC is **built and runs**. Security gate (`make verify`) is green: 47 tests + a 
 
 ## Get started
 
+> 🇹🇭 **ไม่ถนัดเรื่องเทคนิค? อ่านคู่มือภาษาไทยทีละขั้น:
+> [docs/guides/SETUP.md](docs/guides/SETUP.md)** — มีภาพรวม, ค่าใช้จ่าย, ศัพท์ที่ต้องรู้,
+> และวิธีใช้งานประจำวัน ครบในไฟล์เดียว
+
 **macOS — one click:** double-click **`setup.command`**. It asks which gateway you use
 (Omise or Stripe) and for its keys, OBS WebSocket password, and domain; generates a
 secure overlay token; writes `.env`

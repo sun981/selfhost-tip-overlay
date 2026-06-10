@@ -1,6 +1,39 @@
 # คู่มือติดตั้ง Tip Overlay System
 
-> ทดสอบด้วย **Omise test mode** ก่อนเสมอ ก่อนใช้ live key จริง
+> ทดสอบด้วย **test mode** ก่อนเสมอ ก่อนใช้ key จริง (ทั้ง Omise และ Stripe)
+
+## ภาพรวม — ระบบนี้ทำงานยังไง
+
+```
+ผู้ชมเปิดหน้าเว็บของคุณ → กรอกชื่อ+ข้อความ+จำนวนเงิน → สแกน QR PromptPay จ่าย
+        ↓
+เงินเข้าบัญชี Omise/Stripe ของคุณโดยตรง (ระบบนี้ไม่แตะเงิน ไม่หักอะไรเพิ่ม)
+        ↓
+การแจ้งเตือน + ข้อความ เด้งขึ้นบนจอ OBS ของคุณอัตโนมัติ พร้อมเสียง
+```
+
+**สิ่งที่ต้องเสียเงิน:** โดเมน (~300–500฿/ปี) อย่างเดียว — ที่เหลือฟรีทั้งหมด
+(gateway หักค่าธรรมเนียม ~1.65% ต่อยอด tip ตามปกติของเขา)
+
+**เวลาที่ใช้:** ติดตั้งครั้งแรก ~1–2 ชั่วโมง (ทำครั้งเดียวจบ) · รอ KYC อนุมัติเป็นเรื่องแยก
+(ระหว่างรอใช้ test mode ซ้อมได้ทุกอย่าง)
+
+**ลำดับขั้น (ทำตามทีละข้อ ไม่ต้องรีบ):**
+
+| ขั้น | ทำอะไร | ใช้เวลา |
+|---|---|---|
+| 1 | สมัคร Omise (หรือ Stripe) → เอา key 2 ตัว | ~20 นาที |
+| 2 | ตั้ง Cloudflare Tunnel (ทำให้เน็ตเข้าถึงเครื่องคุณแบบปลอดภัย) | ~20 นาที |
+| 3 | เปิด WebSocket ใน OBS | ~2 นาที |
+| 4 | ดาวน์โหลดระบบ + กรอกค่า + กดรัน | ~20 นาที |
+| 5 | ทดสอบด้วยเงินปลอม (test mode) | ~15 นาที |
+| 6 | สลับเป็นเงินจริง | ~5 นาที |
+
+> **ศัพท์ที่จะเจอ (อ่านก่อนกันงง):**
+> - **Terminal / Command Prompt** = หน้าต่างพิมพ์คำสั่ง — Mac: เปิดแอป "Terminal", Windows: กด Start พิมพ์ `cmd` กด Enter
+> - **`.env`** = ไฟล์ข้อความธรรมดา 1 ไฟล์ เก็บรหัสลับทั้งหมดของคุณ (เปิดแก้ด้วย Notepad/TextEdit ได้)
+> - **Docker** = โปรแกรมที่รันระบบนี้ให้ ติดตั้งครั้งเดียว เปิดทิ้งไว้ตอนไลฟ์
+> - **key / secret / token** = รหัสลับรูปแบบต่างๆ หน้าที่เดียวกันหมด: **คัดลอกมาวาง ห้ามบอกใคร**
 
 ---
 
@@ -8,10 +41,10 @@
 
 | สิ่งที่ต้องมี | หมายเหตุ |
 |---|---|
-| Windows/Mac ที่รัน OBS | เครื่องเดียวกับที่ติดตั้งระบบนี้ |
-| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | ติดตั้งและ**เปิดค้างไว้**ตลอดเวลาใช้งาน |
-| Domain บน Cloudflare | ซื้อจาก registrar ใดก็ได้ แล้ว nameserver ชี้มา Cloudflare |
-| บัญชี [Omise](https://www.omise.co/) | สมัครฟรี, KYC = บัตรประชาชนหรือใบขับขี่ |
+| Windows/Mac ที่รัน OBS | เครื่องเดียวกับที่ติดตั้งระบบนี้ (เครื่องที่ใช้ไลฟ์นั่นแหละ) |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | ดาวน์โหลด → ติดตั้งแบบกด Next ไปเรื่อยๆ → เปิดโปรแกรม รอจนไอคอนวาฬนิ่ง ("Docker Desktop is running") → จากนั้น**เปิดค้างไว้**ทุกครั้งที่ใช้งาน |
+| โดเมน (ชื่อเว็บของคุณ) | ดูวิธีซื้อในขั้นตอนที่ 2 — ถ้ายังไม่มี ซื้อตอนนั้นได้เลย |
+| บัญชี [Omise](https://www.omise.co/) หรือ [Stripe](https://stripe.com) | สมัครฟรี เลือกเจ้าเดียวพอ, KYC ใช้บัตรประชาชน |
 | OBS Studio เวอร์ชัน 28 ขึ้นไป | ดูเวอร์ชัน: Help → About OBS Studio |
 
 ---
@@ -66,7 +99,18 @@
 
 ## ขั้นตอนที่ 2 — ตั้งค่า Cloudflare Tunnel
 
-Cloudflare Tunnel ทำให้ Omise ส่ง webhook มาถึงเครื่องคุณได้ โดยไม่ต้องเปิด port
+Cloudflare Tunnel ทำให้ Omise/Stripe ส่งข้อมูลการจ่ายเงินมาถึงเครื่องคุณได้แบบปลอดภัย โดยไม่ต้องเปิดช่องอะไรในเครื่อง/เราเตอร์เลย
+
+### 2.0 ยังไม่มีโดเมน? ซื้อก่อน (~5 นาที)
+
+โดเมน = ชื่อเว็บที่ผู้ชมจะเปิด เช่น `tip-ชื่อช่องคุณ.com`
+
+**ทางง่ายสุด — ซื้อกับ Cloudflare เลย** (ไม่ต้องตั้ง nameserver เอง):
+1. สมัคร [dash.cloudflare.com](https://dash.cloudflare.com) (ฟรี)
+2. เมนูซ้าย → **Domain Registration** → **Register Domains** → ค้นหาชื่อที่อยากได้ → จ่ายเงิน (~$10/ปี ≈ 350฿)
+3. เสร็จ — โดเมนพร้อมใช้กับขั้นตอนถัดไปทันที
+
+**ถ้ามีโดเมนจากที่อื่นอยู่แล้ว** (Namecheap, GoDaddy ฯลฯ): Cloudflare dashboard → **Add a site** → ใส่ชื่อโดเมน → เลือก plan **Free** → ระบบจะบอก nameserver 2 ตัว → ไปแก้ nameserver ที่เว็บที่คุณซื้อโดเมน → รอจน Cloudflare ขึ้นว่า Active (อาจรอเป็นชั่วโมง)
 
 ### 2.1 สร้าง Tunnel
 
@@ -121,14 +165,15 @@ Cloudflare Tunnel ทำให้ Omise ส่ง webhook มาถึงเค�
 
 ### 4.1 ดาวน์โหลด code
 
-**วิธีที่ 1 — มี Git:**
-```bash
-git clone https://github.com/yourusername/tip-overlay.git
-cd "tip-overlay"
-```
+**วิธีที่ 1 — ง่ายสุด (ไม่ต้องมีโปรแกรมอะไร):**
+ไปที่หน้า GitHub ของโปรเจกต์ → ปุ่มเขียว **Code** → **Download ZIP** → แตกไฟล์ →
+ย้ายโฟลเดอร์ไปไว้ที่จำง่ายๆ เช่น Desktop → จดไว้ว่าอยู่ตรงไหน (จะใช้ตลอดคู่มือนี้)
 
-**วิธีที่ 2 — ไม่มี Git:**
-ไปที่ GitHub → **Code** → **Download ZIP** → แตกไฟล์ → จดตำแหน่งโฟลเดอร์ไว้
+**วิธีที่ 2 — มี Git:**
+```bash
+git clone https://github.com/sun981/selfhost-tip-overlay.git
+cd selfhost-tip-overlay
+```
 
 > **ทางลัด (Mac/Linux) — แนะนำ:** แทนขั้นตอน **4.2–4.4** ด้านล่างทั้งหมด ด้วยการ
 > **ดับเบิลคลิก `setup.command`** (Mac) หรือรัน `make setup` (Mac/Linux). ตัวช่วยจะ
@@ -153,6 +198,13 @@ cd C:\path\to\tip-overlay
 copy .env.example .env
 ```
 
+> **ทริค Windows:** เปิด File Explorer เข้าไปในโฟลเดอร์โปรเจกต์ → คลิกที่แถบ address
+> ด้านบน → พิมพ์ `cmd` → Enter — จะได้ Command Prompt ที่อยู่ในโฟลเดอร์นั้นเลย
+> ไม่ต้องพิมพ์ `cd` เอง (ใช้ทริคนี้ได้กับทุกคำสั่งในคู่มือนี้)
+>
+> **หมายเหตุ:** ไฟล์ `.env` อาจมองไม่เห็นใน File Explorer (ชื่อขึ้นต้นด้วยจุด = ไฟล์ซ่อน)
+> เปิดด้วย Notepad ผ่านคำสั่ง `notepad .env` ใน Command Prompt ได้เลย
+
 ### 4.3 แก้ไขไฟล์ .env
 
 เปิด `.env` ด้วย Notepad (Windows) หรือ TextEdit (Mac) แล้วแก้ทุกบรรทัด:
@@ -173,9 +225,11 @@ OBS_WS_PASSWORD=รหัสที่ตั้งใน_OBS
 # Domain ของคุณ (ไม่มี / ตัวสุดท้าย)
 CORS_ORIGIN=https://yourdomain.com
 
-# Overlay Token — สตริงสุ่มที่คุณตั้งเอง ห้ามบอกใคร
-# สร้างได้จาก: https://generate-secret.vercel.app/32
-# หรือพิมพ์ตัวอักษร+เลข สุ่มๆ ยาว 32 ตัวก็ได้
+# Overlay Token — รหัสลับกันคนอื่นแอบเปิด overlay ของคุณ ตั้งเองได้ ห้ามบอกใคร
+# วิธีสร้างแบบสุ่มจริงๆ:
+#   Mac:     เปิด Terminal พิมพ์  openssl rand -hex 16
+#   Windows: เปิด PowerShell พิมพ์  -join ((48..57)+(97..122) | Get-Random -Count 32 | % {[char]$_})
+# หรือพิมพ์ตัวอักษร+เลขมั่วๆ เองยาวๆ 32 ตัวก็ได้ (อย่าใช้คำเดาง่าย)
 OVERLAY_TOKEN=ใส่สตริงสุ่มที่นี่
 
 # ค่าอื่นๆ ไม่ต้องแก้
@@ -235,23 +289,24 @@ docker compose logs backend
 3. ต้องเห็นฟอร์มกรอก tip (ถ้าเห็น "ยังไม่ได้ไลฟ์" แสดงว่า OBS ต่อถูกแล้ว)
 4. กรอกชื่อ + จำนวน (ขั้นต่ำ ฿20) + ข้อความ → ส่ง
 5. ต้องเห็น QR code PromptPay
-6. จำลองการจ่ายเงิน:
-   - Omise Dashboard → **Developers** → เลือก charge ล่าสุด → **Mark as paid** (ปุ่มสีเขียว)
+6. จำลองการจ่ายเงิน (test mode ไม่ใช้เงินจริง):
+   - **Omise:** Dashboard → **Developers** → เลือก charge ล่าสุด → **Mark as paid** (ปุ่มสีเขียว)
+   - **Stripe:** ใน test mode ตัว QR ที่ขึ้นจะเป็น QR ทดสอบ — สแกน/คลิกแล้วจะเจอหน้า
+     ของ Stripe ที่มีปุ่ม **Authorize Test Payment** ให้กดจ่ายปลอม
+     (หรือ Dashboard → Payments → เลือกรายการ → ดูสถานะ)
 7. ✅ ภายใน ~5 วินาที tip ต้องขึ้นบน OBS overlay
 
 ### ✅ Test 2: Webhook ลายเซ็นผิด → ต้องปฏิเสธ
 
-ทดสอบโดยส่ง webhook ปลอมผ่านเครื่องมือ API เช่น [Postman](https://www.postman.com/downloads/) หรือ [Hoppscotch](https://hoppscotch.io):
+เช็คว่าระบบไม่รับข้อมูลการจ่ายเงินปลอม — คัดลอกคำสั่งนี้ทั้งก้อนไปวางใน Terminal /
+Command Prompt (แก้ `yourdomain.com` เป็นโดเมนจริงก่อน):
 
-- Method: `POST`
-- URL: `https://yourdomain.com/webhooks/omise`
-- Headers:
-  - `Content-Type: application/json`
-  - `Omise-Signature-Timestamp: 1234567890`
-  - `Omise-Signature: invalidsignature`
-- Body: `{"key":"charge.complete","data":{}}`
+```bash
+curl -s -o /dev/null -w "%{http_code}" -X POST https://yourdomain.com/webhooks/omise -H "Content-Type: application/json" -H "Omise-Signature-Timestamp: 1234567890" -H "Omise-Signature: invalidsignature" -d "{}"
+```
 
-✅ ต้องได้ response **401 Unauthorized**
+✅ ต้องได้เลข **401** (= ระบบปฏิเสธของปลอม ถูกต้องแล้ว)
+(ใช้ Stripe → เปลี่ยนท้าย URL เป็น `/webhooks/stripe` ผลต้องได้ 401 เหมือนกัน)
 
 ### ✅ Test 3: Backend ดับระหว่างมี charge pending
 
@@ -278,11 +333,12 @@ docker compose logs backend
 
 ---
 
-## ขั้นตอนที่ 6 — Switch เป็น Live mode
+## ขั้นตอนที่ 6 — Switch เป็น Live mode (เงินจริง)
 
-เมื่อผ่านทุก test แล้วและ Omise อนุมัติ KYC แล้ว:
+เมื่อผ่านทุก test แล้วและ gateway อนุมัติ KYC แล้ว:
 
-1. Omise Dashboard → toggle เป็น **Live** (แถบสีเขียว)
+**Omise:**
+1. Dashboard → toggle เป็น **Live** (แถบสีเขียว)
 2. Settings → Keys → คัดลอก **Live Secret key** (`skey_live_...`)
 3. Developers → Webhooks → สร้าง webhook URL เดิม แต่คัดลอก **Live Webhook Secret**
 4. แก้ `.env`:
@@ -292,7 +348,32 @@ docker compose logs backend
    ```
 5. `docker compose restart backend`
 
+**Stripe:**
+1. Dashboard → ปิด **Test mode** (toggle มุมขวาบน)
+2. Developers → API keys → คัดลอก **Live** Secret key (`sk_live_...`)
+3. Developers → Webhooks → สร้าง endpoint URL เดิม (`/webhooks/stripe`) ในโหมด live
+   → คัดลอก Signing secret (`whsec_...`) ตัวใหม่
+4. แก้ `.env`: `STRIPE_SECRET_KEY=sk_live_...` และ `STRIPE_WEBHOOK_SECRET=whsec_...`
+5. `docker compose restart backend`
+
 > ⚠️ Live key = เงินจริง ตรวจสอบ Test 1–5 ให้ผ่านทุกข้อก่อน switch
+> แนะนำ: ลองโอนจริง ฿20 ของตัวเอง 1 ครั้งหลัง switch เพื่อยืนยันว่าทุกอย่างถึงกัน
+
+---
+
+## การใช้งานประจำวัน (หลังติดตั้งเสร็จ)
+
+ติดตั้งครั้งเดียวจบ — วันไลฟ์ปกติทำแค่นี้:
+
+1. เปิดเครื่อง → เปิด **Docker Desktop** รอไอคอนวาฬนิ่ง (ระบบ tip จะ start ตัวเองอัตโนมัติ)
+2. เปิด **OBS** → กด **Start Streaming**
+3. แปะลิงก์หน้า tip (`https://yourdomain.com`) ไว้ใต้ไลฟ์/ใน bio ให้ผู้ชมกด
+4. จบ — tip ที่จ่ายสำเร็จจะเด้งบนจอเอง เงินเข้าบัญชี gateway ของคุณตรงๆ
+
+สิ่งที่ควรรู้:
+- **ปิด OBS / หยุดไลฟ์ = หน้า tip ปิดรับอัตโนมัติ** (ผู้ชมเห็น "ยังไม่ได้ไลฟ์") — แต่ถ้ามีคนสแกน QR ค้างไว้แล้วเพิ่งจ่ายหลังจบไลฟ์ เงินไม่หาย ระบบบันทึกให้เสมอ
+- **เครื่องดับ/รีสตาร์ทกลางไลฟ์?** เปิด Docker Desktop กลับมา — ระบบจะไล่เก็บ tip ที่พลาดไปให้เอง (ขึ้นจอเฉพาะรายการใหม่ๆ รายการเก่าเก็บลงประวัติเงียบๆ)
+- อยากดูว่าใครเคย tip เท่าไหร่ → ดูใน dashboard ของ Omise/Stripe ได้ตลอด
 
 ---
 
@@ -343,17 +424,27 @@ make verify                   # รัน security tests
 | อาการ | สาเหตุที่น่าจะเป็น | วิธีแก้ |
 |---|---|---|
 | หน้าเว็บขึ้น "ยังไม่ได้ไลฟ์" ตลอด | OBS ไม่ได้ streaming หรือ WebSocket password ผิด | เช็ค OBS → Start Streaming และ password ใน .env |
-| QR ไม่ขึ้น | `OMISE_SECRET_KEY` ผิดหรือ test/live mode ไม่ตรง | เช็ค key ใน Omise dashboard |
-| tip ไม่ขึ้น overlay หลังจ่าย | Webhook URL ผิดหรือ Cloudflare Tunnel ไม่ได้รัน | `docker compose ps` ดูว่า cloudflared up |
-| `[STARTUP ERROR]` | ค่าใน .env ยังเป็น placeholder หรือว่าง | เปิด .env เช็คทุกค่าว่าไม่มี CHANGEME |
+| QR ไม่ขึ้น | Secret key ผิด หรือ test/live mode ไม่ตรงกับ key | เช็ค key ใน dashboard ของ gateway (test key คู่กับ test mode เท่านั้น) |
+| tip ไม่ขึ้น overlay หลังจ่าย | Webhook URL ผิดหรือ Cloudflare Tunnel ไม่ได้รัน | `docker compose ps` ดูว่า cloudflared up + เช็ค URL ใน dashboard gateway ว่าสะกดถูก |
+| `[STARTUP ERROR]` | ค่าใน .env ยังเป็น placeholder หรือว่าง | เปิด .env เช็คทุกค่าว่าไม่มี CHANGEME — ข้อความ error บอกชื่อตัวที่ขาดตรงๆ |
 | Overlay ไม่ขึ้นใน OBS | token ใน URL ไม่ตรงกับ OVERLAY_TOKEN ใน .env | เช็ค URL ของ browser source |
-| Docker ไม่รัน | Docker Desktop ไม่ได้เปิด | เปิด Docker Desktop ก่อน |
+| Docker ไม่รัน / คำสั่งฟ้อง error | Docker Desktop ไม่ได้เปิด | เปิด Docker Desktop รอวาฬนิ่ง แล้วลองใหม่ |
+| คำสั่งฟ้อง "no configuration file" | Terminal ไม่ได้อยู่ในโฟลเดอร์โปรเจกต์ | `cd` เข้าโฟลเดอร์ก่อน (หรือใช้ทริค address bar ในขั้น 4.2) |
+
+### ติดปัญหาแก้ไม่ออก — ขอความช่วยเหลือยังไง
+
+1. รันคำสั่งนี้แล้วคัดลอกผลลัพธ์ ~30 บรรทัดสุดท้าย:
+   ```bash
+   docker compose logs backend
+   ```
+2. เปิด issue ที่หน้า GitHub ของโปรเจกต์ → เล่าว่าทำขั้นไหนอยู่ เห็นอะไร + แปะ log
+3. ⚠️ **ห้ามแปะไฟล์ `.env` หรือ key/secret/token ใดๆ ลงใน issue เด็ดขาด** — log จากคำสั่งข้อ 1 ปลอดภัย (ระบบออกแบบมาไม่พิมพ์ secret ลง log)
 
 ---
 
 ## หมายเหตุสำคัญ
 
-- **ค่า gateway**: Omise เก็บ PromptPay **1.65% + VAT 7% (≈1.77%)** จากยอดที่ streamer ได้รับ — ระบบนี้ไม่หักเพิ่ม
-- **คืนเงินไม่ได้**: PromptPay charge คืนเงินผ่าน Omise ไม่ได้ ควรแจ้ง supporter ก่อนจ่าย
-- **ความรับผิดชอบ**: KYC, ภาษี, และการปฏิบัติตามเงื่อนไข Omise เป็นของ streamer เอง ดู [Omise Terms](https://www.omise.co/th/terms)
-- **Security**: หากพบช่องโหว่ ดู `../../SECURITY.md` (repo root)
+- **ค่า gateway**: PromptPay ~**1.65%** ต่อยอด (Omise +VAT 7% ≈1.77%; Stripe ตามสถานะภาษีบัญชี + ฿10 ต่อการคืนเงิน) หักจากยอดที่ streamer ได้รับ — ระบบนี้ไม่หักเพิ่ม
+- **เรื่องคืนเงิน**: PromptPay ผ่าน Omise คืนเงินไม่ได้; Stripe คืนได้แต่มีค่าธรรมเนียม ฿10 — ควรแจ้ง supporter ก่อนจ่าย
+- **ความรับผิดชอบ**: KYC, ภาษี, และการปฏิบัติตามเงื่อนไขของ gateway เป็นของ streamer เอง — [Omise Terms](https://www.omise.co/th/terms) · [Stripe Terms](https://stripe.com/th/legal/ssa)
+- **Security**: หากพบช่องโหว่ ดู `SECURITY.md` (repo root)

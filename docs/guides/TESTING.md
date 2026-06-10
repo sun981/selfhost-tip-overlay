@@ -16,7 +16,7 @@ make verify
 
 Expected tail:
 ```
-31 passed
+47 passed
 OK — core/ does not import app/
 === All checks passed ===
 ```
@@ -92,12 +92,14 @@ Sound notes:
 - A plain Chrome tab may stay silent until you click the page once (autoplay block).
   **OBS Browser Source autoplays** → sound works there.
 
-### B3. Full real flow (Omise TEST mode) — the money path
-1. Omise dashboard in **TEST mode**; test keys in `.env`.
+### B3. Full real flow (gateway TEST mode) — the money path
+1. Gateway dashboard in **TEST mode**; test keys in `.env` (`PAYMENT_GATEWAY` matches).
 2. Open the tip page (your Cloudflare Tunnel URL) while **OBS is live** (the page only
    shows the form when `GET /api/live-status` is true — fail-closed if OBS WS is down).
-3. Enter name + message + amount **≥ ฿20** → pay the PromptPay test charge.
-4. Mark the charge paid in the Omise dashboard → webhook fires → card appears in OBS.
+3. Enter name + message + amount **≥ ฿20** → get the PromptPay test QR.
+4. Simulate payment — **Omise:** dashboard → charge → "Mark as paid". **Stripe:** open the
+   test QR's link → "Authorize Test Payment" (or `stripe trigger payment_intent.succeeded`
+   with the CLI). Webhook fires → card appears in OBS.
 
 ### B4. §11 manual security checks
 - **XSS renders as text:** send a tip whose message is `<script>alert(1)</script>` (or via
@@ -112,13 +114,13 @@ Sound notes:
 
 ## C. Status — verified vs not
 
-- ✅ Automated gate green (31 tests), `make verify` runs end-to-end.
+- ✅ Automated gate green (47 tests), `make verify` runs end-to-end.
 - ✅ Overlay reachable on `127.0.0.1:8080`; SSE wire format correct (single `id:`/`data:`);
   dev trigger fires through `process_tip`; `/api/charge` returns 403/429 (not 422).
+- ✅ `next_seq` TOCTOU race (F6) **fixed**: `event_seq` is allocated inside the
+  `mark_pushed` UPDATE itself, so concurrent webhook + reconciliation can't collide.
+- ✅ Stripe webhook signature verified against a real Stripe CLI trigger
+  (`payment_intent.succeeded` → 200 + recorded + pushed; forged/missing sig → 401).
 - ⚠️ **Browser render of a card + sound has NOT been eyeballed** — do B1+B2 to confirm.
-- ⚠️ **Known deferred bug — `next_seq` TOCTOU race:** a webhook arriving during startup
-  reconciliation can share an `event_seq` with another row → one tip could be missed on a
-  reconnect replay. Low probability; needs an isolated money-path fix (allocate the seq
-  inside the `mark_pushed` UPDATE). Not yet fixed.
 - ⏳ `core/`-protection hook (ARCHITECTURE §13.5) intentionally still not installed (it's the
   last build step, by design).
