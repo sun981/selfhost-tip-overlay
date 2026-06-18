@@ -17,5 +17,5 @@ sse-starlette==3.4.4
 
 # Test deps — the Dockerfile installs the full file, so the gate runs pytest
 # inside the backend image (see Makefile PYTEST_RUN).
-pytest==9.0.3
+pytest==9.1.0
 pytest-asyncio==1.4.0
