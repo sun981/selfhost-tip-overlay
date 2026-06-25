@@ -10,7 +10,7 @@ httpx==0.28.1
 sqlalchemy==2.0.50
 python-multipart==0.0.32
 websockets==16.0
-structlog==25.5.0
+structlog==26.1.0
 pydantic==2.13.4
 pydantic-settings==2.14.1
 sse-starlette==3.4.4
