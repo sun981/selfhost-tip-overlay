@@ -12,7 +12,7 @@ python-multipart==0.0.32
 websockets==16.0
 structlog==25.5.0
 pydantic==2.13.4
-pydantic-settings==2.14.1
+pydantic-settings==2.14.2
 sse-starlette==3.4.4
 
 # Test deps — the Dockerfile installs the full file, so the gate runs pytest

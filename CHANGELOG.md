@@ -3,6 +3,16 @@
 Notable changes per release. Update with `git pull && docker compose pull && docker compose up -d` —
 your `user/` folder is never touched by updates.
 
+## Unreleased
+
+- **fix(omise): startup reconciliation now actually reads Omise's list.** `list_recent`
+  used Stripe-style pagination (`has_more` / `starting_after`) and sent `from` as a unix
+  integer. Omise is offset-paginated with ISO 8601 `from`, so recovery stopped after the
+  oldest 100 charges (or failed outright). Now: ISO `from`, `offset`/`total` paging,
+  successful-only filter, plus tests against Omise's real list shape.
+- **security(deps): pydantic-settings 2.14.1 → 2.14.2** (CVE-2026-58203) — weekly CI
+  gate was red on this.
+
 ## v0.2.0 — 2026-06-10
 
 **Update infrastructure release** — no money-path behavior changes.
