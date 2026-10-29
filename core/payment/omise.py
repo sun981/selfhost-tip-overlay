@@ -11,7 +11,7 @@ import hashlib
 import hmac
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Mapping
 
 import httpx
@@ -203,9 +203,14 @@ class OmiseAdapter:
         """
         Fetch successful charges since `since` (paginated).
         Used by reconciliation on startup.
+
+        Omise lists are OFFSET-paginated (https://docs.omise.co/api-pagination):
+        `from` is ISO 8601 UTC, response carries `offset`/`limit`/`total` — there is no
+        `has_more` or `starting_after` cursor (that is Stripe's scheme). The list holds
+        every status, so non-successful charges are filtered out here.
         """
         results: list[ChargeData] = []
-        since_ts = int(since.timestamp())
+        since_utc = since.astimezone(timezone.utc) if since.tzinfo else since.replace(tzinfo=timezone.utc)
 
         with httpx.Client(
             base_url=self.OMISE_API,
@@ -213,16 +218,20 @@ class OmiseAdapter:
             timeout=30.0,
         ) as client:
             params: dict[str, Any] = {
-                "status": "successful",
-                "from": since_ts,
+                "from": since_utc.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "order": "chronological",  # oldest first → new charges append, offsets stay stable
                 "limit": 100,
+                "offset": 0,
             }
             while True:
                 resp = client.get("/charges", params=params)
                 resp.raise_for_status()
                 data = resp.json()
+                page = data.get("data", [])
 
-                for charge in data.get("data", []):
+                for charge in page:
+                    if charge.get("status") != "successful":
+                        continue
                     paid_at = None
                     if charge.get("paid_at"):
                         paid_at = datetime.fromisoformat(
@@ -240,10 +249,10 @@ class OmiseAdapter:
                         ),
                     ))
 
-                # Pagination
-                if not data.get("pagination", {}).get("has_more", False):
+                # Offset pagination: stop on an empty page or once offset reaches total
+                params["offset"] += len(page)
+                if not page or params["offset"] >= int(data.get("total", 0)):
                     break
-                params["starting_after"] = data["data"][-1]["id"]
 
         return results
 
